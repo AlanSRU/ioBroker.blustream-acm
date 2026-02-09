@@ -1,0 +1,108 @@
+{
+    "common": {
+        "name": "blustream-acm200",
+        "version": "1.0.0",
+        "news": {
+            "1.0.0": {
+                "en": "Initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "Lançamento inicial",
+                "nl": "Initiële uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "zh-cn": "首次出版"
+            }
+        },
+        "title": "Blustream ACM200 Matrix Controller",
+        "titleLang": {
+            "en": "Blustream ACM200 Matrix Controller",
+            "de": "Blustream ACM200 Matrix-Controller",
+            "ru": "Контроллер матрицы Blustream ACM200",
+            "pt": "Controlador de matriz Blustream ACM200",
+            "nl": "Blustream ACM200 Matrix Controller",
+            "fr": "Contrôleur de matrice Blustream ACM200",
+            "it": "Controller matrice Blustream ACM200",
+            "es": "Controlador de matriz Blustream ACM200",
+            "pl": "Kontroler macierzy Blustream ACM200",
+            "zh-cn": "Blustream ACM200 矩阵控制器"
+        },
+        "desc": {
+            "en": "Controls Blustream ACM200 matrix switches for audio/video distribution over IP",
+            "de": "Steuert Blustream ACM200-Matrix-Switches für Audio-/Videoverteilung über IP",
+            "ru": "Управляет матричными коммутаторами Blustream ACM200 для распределения аудио/видео по IP",
+            "pt": "Controla comutadores de matriz Blustream ACM200 para distribuição de áudio/vídeo por IP",
+            "nl": "Bestuurt Blustream ACM200 matrixschakelaars voor audio/video-distributie via IP",
+            "fr": "Contrôle les commutateurs matriciels Blustream ACM200 pour la distribution audio/vidéo sur IP",
+            "it": "Controlla gli switch di matrice Blustream ACM200 per la distribuzione audio/video tramite IP",
+            "es": "Controla los conmutadores de matriz Blustream ACM200 para la distribución de audio/video a través de IP",
+            "pl": "Steruje przełącznikami matrycowymi Blustream ACM200 do dystrybucji audio/wideo przez IP",
+            "zh-cn": "控制 Blustream ACM200 矩阵交换机，用于通过 IP 进行音频/视频分发"
+        },
+        "authors": [
+            "Your Name <your.email@example.com>"
+        ],
+        "keywords": [
+            "blustream",
+            "acm200",
+            "matrix",
+            "video",
+            "audio",
+            "hdmi",
+            "distribution"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "blustream-acm200.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/yourgithub/ioBroker.blustream-acm200/master/admin/blustream-acm200.png",
+        "readme": "https://github.com/yourgithub/ioBroker.blustream-acm200/blob/master/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "multimedia",
+        "compact": true,
+        "connectionType": "local",
+        "dataSource": "poll",
+        "materialize": true,
+        "dependencies": [
+            {
+                "js-controller": ">=2.0.0"
+            }
+        ]
+    },
+    "native": {
+        "host": "192.168.0.225",
+        "port": 23,
+        "pollInterval": 30000,
+        "timeout": 5000,
+        "username": "admin",
+        "password": "1234"
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
