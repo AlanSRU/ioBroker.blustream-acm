@@ -1,6 +1,6 @@
 {
     "name": "iobroker.blustream-acm200",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Controls Blustream ACM200 matrix switches for audio/video distribution over IP",
     "author": {
       "name": "Your Name",

@@ -208,6 +208,9 @@ class BlustreamAcm200 extends utils.Adapter {
         this.subscribeStates('system.commands.refresh');
         this.subscribeStates('system.commands.refreshAll');
         this.subscribeStates('receivers.*.route');
+        this.subscribeStates('receivers.*.videoRoute');
+        this.subscribeStates('receivers.*.audioRoute');
+        this.subscribeStates('transmitters.*.audioSource');
 
         // Start connection to ACM200 - Use new socket-based connection
         this.connectToACM();
@@ -254,13 +257,36 @@ class BlustreamAcm200 extends utils.Adapter {
             }
     
             // Handle routing changes
-            if (id.startsWith(`${this.namespace}.receivers.`) && id.endsWith('.route')) {
-                const receiverId = id.split('.')[2];
+            if (id.startsWith(`${this.namespace}.receivers.`)) {
+                const localId = id.slice(this.namespace.length + 1); // e.g. 'receivers.001.route'
+                const parts = localId.split('.');
+                const receiverId = parts[1];
+                const stateName = parts[2];
                 const transmitterId = state.val;
-                
+
                 if (receiverId && transmitterId) {
-                    this.log.info(`Routing transmitter ${transmitterId} to receiver ${receiverId}`);
-                    this.routeVideo(transmitterId, receiverId);
+                    if (stateName === 'route') {
+                        this.log.info(`Routing transmitter ${transmitterId} (audio+video) to receiver ${receiverId}`);
+                        this.routeVideo(transmitterId, receiverId);
+                    } else if (stateName === 'videoRoute') {
+                        this.log.info(`Routing video from transmitter ${transmitterId} to receiver ${receiverId}`);
+                        this.routeVideoOnly(transmitterId, receiverId);
+                    } else if (stateName === 'audioRoute') {
+                        this.log.info(`Routing audio from transmitter ${transmitterId} to receiver ${receiverId}`);
+                        this.routeAudioOnly(transmitterId, receiverId);
+                    }
+                }
+            }
+
+            // Handle transmitter audio source changes
+            if (id.startsWith(`${this.namespace}.transmitters.`) && id.endsWith('.audioSource')) {
+                const localId = id.slice(this.namespace.length + 1);
+                const txId = localId.split('.')[1];
+                const audioSource = state.val;
+
+                if (txId && audioSource) {
+                    this.log.info(`Setting transmitter ${txId} audio source to ${audioSource}`);
+                    this.setTransmitterAudioSource(txId, audioSource);
                 }
             }
         }
@@ -405,7 +431,12 @@ class BlustreamAcm200 extends utils.Adapter {
                     this.connected = true;
                     this.connectionInProgress = false;
                     this.setState('info.connection', true, true);
-                    
+
+                    // Disable socket timeout — heartbeat handles liveness detection
+                    if (this.socket) {
+                        this.socket.setTimeout(0);
+                    }
+
                     // Start heartbeat with more appropriate timing
                     this.startHeartbeat();
                     
@@ -422,40 +453,6 @@ class BlustreamAcm200 extends utils.Adapter {
                     this.cleanup(true);
                 });
         }, 5000); // Increase from 2000 to 5000 ms (5 seconds)
-    }
-
-    /**
-     * Handle data received from socket
-     * @param {Buffer} data - Raw data received
-     */
-    handleData(data) {
-        // Convert buffer to string and add to existing buffer
-        const newData = data.toString();
-        this.log.debug(`Data received: ${newData.length} bytes`);
-        this.socketBuffer += newData;
-        
-        // Add debug logging to see buffer contents
-        this.log.debug(`Current buffer size: ${this.socketBuffer.length} bytes`);
-        
-        // Process buffer for complete lines
-        let endIndex;
-        while ((endIndex = this.socketBuffer.indexOf('\n')) !== -1) {
-            const line = this.socketBuffer.substring(0, endIndex).trim();
-            this.socketBuffer = this.socketBuffer.substring(endIndex + 1);
-            
-            if (line.length > 0) {
-                // Process the received line
-                try {
-                    this.processResponse(line);
-                } catch (err) {
-                    this.log.error(`Error processing line: ${err.message}`);
-                    this.log.debug(`Line content: ${line.substring(0, 100)}...`);
-                }
-            }
-        }
-        
-        // Any data receipt means the connection is alive
-        this.resetHeartbeatTimeout();
     }
 
     /**
@@ -498,24 +495,30 @@ class BlustreamAcm200 extends utils.Adapter {
             clearInterval(this.heartbeatTimer);
         }
         
-        // Use a longer interval to reduce load
-        const heartbeatInterval = 5000; // 5 seconds
-        
+        // Use the instance heartbeat interval
+        const heartbeatInterval = this.heartbeatInterval;
+
         this.log.info(`Starting heartbeat monitoring (interval: ${heartbeatInterval}ms)`);
-        
+
         this.heartbeatTimer = setInterval(() => {
             if (!this.connected || !this.socket) {
                 return;
             }
             
+            // Skip heartbeat STATUS if the command queue is busy — the fact that
+            // we're processing commands already proves the connection is alive
+            if (this.commandQueue.length > 0 || this.processingCommand) {
+                this.log.debug('Skipping heartbeat — command queue is busy (connection is alive)');
+                this.resetHeartbeatTimeout();
+                return;
+            }
+
             this.log.debug('Sending heartbeat');
-            
+
             // Set up timeout for heartbeat response
             this.resetHeartbeatTimeout();
-            
+
             // Use a command that the ACM200 actually supports
-            // Based on your telnet observation, VERERR isn't recognized
-            // Try using "STATUS" as a heartbeat instead
             this.executeCommand('STATUS', 10000)
                 .then(response => {
                     this.log.debug(`Heartbeat successful: received ${response ? 'response' : 'no response'}`);
@@ -607,44 +610,6 @@ executeCommand(command, timeout = 10000) {
             this.processNextCommand();
         }
     });
-}
-
-/**
- * Process the next command in the queue
- */
-processNextCommand() {
-    if (this.processingCommand || this.commandQueue.length === 0) {
-        return;
-    }
-    
-    this.processingCommand = true;
-    const cmd = this.commandQueue[0];
-    
-    this.log.debug(`Executing command: ${cmd.command}`);
-    
-    try {
-        // Send command with proper line termination
-        const commandToSend = cmd.command.endsWith('\r\n') ? cmd.command : cmd.command + '\r\n';
-        this.socket.write(commandToSend, 'utf8', (err) => {
-            if (err) {
-                // Handle write error
-                clearTimeout(cmd.timer);
-                cmd.reject(new Error(`Failed to send command: ${err.message}`));
-                this.commandQueue.shift();
-                this.processingCommand = false;
-                this.processNextCommand();
-            } else {
-                this.log.debug(`Command sent successfully: ${cmd.command.trim()}`);
-            }
-        });
-    } catch (err) {
-        // Handle any exceptions
-        clearTimeout(cmd.timer);
-        cmd.reject(new Error(`Exception sending command: ${err.message}`));
-        this.commandQueue.shift();
-        this.processingCommand = false;
-        this.processNextCommand();
-    }
 }
 
 /**
@@ -816,23 +781,32 @@ handleData(data) {
         // First, handle the response for command processing
         if (this.processingCommand && this.commandQueue.length > 0) {
             const currentCmd = this.commandQueue[0];
-            
-            // Check if this is a valid response to a command
-            if (line.includes('=================') || 
+            const cmdStr = currentCmd.command.trim();
+
+            // Check if this is a valid response/completion to the current command
+            let commandComplete = false;
+
+            // STATUS-type responses end with separator lines
+            if (line.includes('=================') ||
                 line.includes('================================================================') ||
-                line.includes('[ERROR]') ||
-                line.includes('Command not found') ||
                 line.includes('ACM200 Status Info')) {
-                
-                // Command completed
-                this.log.debug(`Completing command: ${currentCmd.command.trim()}`);
+                commandComplete = true;
+            }
+            // ACM200 action responses: "[SUCCESS]..." or "[ERROR]..."
+            else if (line.includes('[SUCCESS]') || line.includes('[ERROR]') ||
+                     line.includes('Command not found')) {
+                commandComplete = true;
+            }
+
+            if (commandComplete) {
+                this.log.debug(`Completing command: ${cmdStr}`);
                 clearTimeout(currentCmd.timer);
                 currentCmd.resolve(line);
                 this.commandQueue.shift();
                 this.processingCommand = false;
-                
-                // Process next command
-                this.processNextCommand();
+
+                // Small delay before next command so the ACM200 can settle
+                setTimeout(() => this.processNextCommand(), 100);
             }
         }
         
@@ -955,35 +929,43 @@ handleData(data) {
      */
     refreshDeviceStatus() {
         if (!this.connected) return;
-        
+
+        // Don't queue a STATUS poll if there are already commands waiting —
+        // sending STATUS while the ACM200 is still processing an action command
+        // can garble the response stream
+        if (this.commandQueue.length > 0 || this.processingCommand) {
+            this.log.debug('Skipping status poll — command queue is busy');
+            return;
+        }
+
         // Check if a full refresh is running
         this.getStateAsync('system.status.fullRefreshRunning')
             .then(state => {
                 const refreshRunning = state && state.val === true;
-                
+
                 if (refreshRunning) {
                     this.log.debug('Skipping device status refresh because full refresh is running');
                     return;
                 }
-                
+
                 // Get system status
                 this.executeCommand('STATUS')
                     .catch(err => {
                         this.log.error(`Error getting STATUS: ${err.message}`);
                     });
-                
+
                 // Update timestamp
                 this.setState('system.status.lastUpdate', new Date().toISOString(), true);
             })
             .catch(err => {
                 this.log.warn(`Error checking refresh status: ${err.message}`);
-                
+
                 // Default behavior on error - try to get status
                 this.executeCommand('STATUS')
                     .catch(err => {
                         this.log.error(`Error getting STATUS: ${err.message}`);
                     });
-                
+
                 this.setState('system.status.lastUpdate', new Date().toISOString(), true);
             });
     }
@@ -1190,12 +1172,17 @@ handleData(data) {
                 
                 // Update the state so it shows correctly in the UI
                 this.setState(`receivers.${rxId}.route`, txId, true);
-                
+                // Combined route sets both audio and video to the same source
+                this.setState(`receivers.${rxId}.videoRoute`, txId, true);
+                this.setState(`receivers.${rxId}.audioRoute`, txId, true);
+
                 // Also update our internal state
                 if (this.receiverStates[rxId]) {
                     this.receiverStates[rxId].currentTx = txId;
+                    this.receiverStates[rxId].currentVideoTx = txId;
+                    this.receiverStates[rxId].currentAudioTx = txId;
                 }
-                
+
                 // Update the receiver's preview URL to show the new source
                 if (this.transmitterStates[txId]) {
                     const sourceIp = this.transmitterStates[txId].ip;
@@ -1208,6 +1195,104 @@ handleData(data) {
             })
             .catch(err => {
                 this.log.error(`Error routing video: ${err.message}`);
+            });
+    }
+
+    /**
+     * Route video only from a transmitter to a receiver (audio breakaway)
+     * @param {string} txId - Transmitter ID
+     * @param {string} rxId - Receiver ID
+     */
+    routeVideoOnly(txId, rxId) {
+        if (!this.connected) {
+            this.log.warn('Cannot route video, not connected');
+            return;
+        }
+
+        const command = `OUT${rxId.padStart(3, '0')}VFR${txId.padStart(3, '0')}`;
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully routed video from TX ${txId} to RX ${rxId}`);
+                this.setState(`receivers.${rxId}.videoRoute`, txId, true);
+
+                if (this.receiverStates[rxId]) {
+                    this.receiverStates[rxId].currentVideoTx = txId;
+                }
+
+                if (this.transmitterStates[txId]) {
+                    const sourceIp = this.transmitterStates[txId].ip;
+                    if (sourceIp) {
+                        const timestamp = Date.now();
+                        const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                        this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
+                    }
+                }
+            })
+            .catch(err => {
+                this.log.error(`Error routing video only: ${err.message}`);
+            });
+    }
+
+    /**
+     * Route audio only from a transmitter to a receiver (audio breakaway)
+     * @param {string} txId - Transmitter ID
+     * @param {string} rxId - Receiver ID
+     */
+    routeAudioOnly(txId, rxId) {
+        if (!this.connected) {
+            this.log.warn('Cannot route audio, not connected');
+            return;
+        }
+
+        const command = `OUT${rxId.padStart(3, '0')}AFR${txId.padStart(3, '0')}`;
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully routed audio from TX ${txId} to RX ${rxId}`);
+                this.setState(`receivers.${rxId}.audioRoute`, txId, true);
+
+                if (this.receiverStates[rxId]) {
+                    this.receiverStates[rxId].currentAudioTx = txId;
+                }
+            })
+            .catch(err => {
+                this.log.error(`Error routing audio only: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set audio source for a transmitter
+     * @param {string} txId - Transmitter ID
+     * @param {string} source - Audio source: HDMI or ANA
+     */
+    setTransmitterAudioSource(txId, source) {
+        if (!this.connected) {
+            this.log.warn('Cannot set audio source, not connected');
+            return;
+        }
+
+        const validSources = ['HDMI', 'ANA'];
+        const upperSource = source.toUpperCase();
+
+        if (!validSources.includes(upperSource)) {
+            this.log.error(`Invalid audio source "${source}". Must be one of: ${validSources.join(', ')}`);
+            return;
+        }
+
+        const command = `IN${txId.padStart(3, '0')} AUD ${upperSource}`;
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully set transmitter ${txId} audio source to ${upperSource}`);
+                this.setState(`transmitters.${txId}.audioSource`, upperSource, true);
+
+                if (this.transmitterStates[txId]) {
+                    this.transmitterStates[txId].audioSource = upperSource;
+                }
+            })
+            .catch(err => {
+                this.log.error(`Error setting audio source: ${err.message}`);
             });
     }
 
@@ -1297,40 +1382,70 @@ handleData(data) {
                     let ip = '';
                     let model = '';
                     let name = '';
-                    
+                    let audioSource = '';
+
                     // Check header format to determine which positions to use
                     if (lines[startIdx].includes('Net') && lines[startIdx].includes('Sig')) {
                         // Format from your example: "In Net Sig Ver EDID MCast Name"
                         status = parts[1] === 'On' && parts[2] === 'On'; // Net and Sig both On
-                        
+
                         if (parts.length >= 5) {
                             edid = parts[4];
                         }
-                        
+
                         // Name is everything after the 6th field
                         if (parts.length >= 7) {
                             name = parts.slice(6).join(' ');
                         }
                     } else if (lines[startIdx].includes('EDID') && lines[startIdx].includes('IP')) {
-                        // Alternative format: "In EDID IP NET/Sig"
+                        // Format: "In EDID IP NET/Sig Model AudioSource"
+                        // Example: 007  CP018  169.254.003.007  On /On  IP200  ANA
                         edid = parts[1];
                         ip = parts[2];
-                        
-                        // Status might be in "NET/Sig" format
-                        const statusPart = parts[3];
-                        status = statusPart.includes('On');
-                        
-                        // Try to extract model if available
-                        if (parts.length >= 5 && parts[4] !== '' && !parts[4].includes('/')) {
-                            model = parts[4];
+
+                        // Status is "On /On" format - may be split into two parts by whitespace
+                        let statusEndIdx = 3;
+                        if (parts[3]) {
+                            if (parts[3].includes('/')) {
+                                // Single part like "On/Off"
+                                status = parts[3].includes('On');
+                                statusEndIdx = 4;
+                            } else if (parts.length > 4 && parts[4] && parts[4].startsWith('/')) {
+                                // Split into two parts like "On" "/On"
+                                status = parts[3] === 'On' || parts[4].includes('On');
+                                statusEndIdx = 5;
+                            } else {
+                                status = parts[3].includes('On');
+                                statusEndIdx = 4;
+                            }
+                        }
+
+                        // Extract model if available (next field after status)
+                        if (parts.length > statusEndIdx && parts[statusEndIdx]) {
+                            model = parts[statusEndIdx];
+                        }
+
+                        // Extract audio source if available (field after model)
+                        // Normalise to uppercase to match command values (HDMI, ANA, AUTO)
+                        if (parts.length > statusEndIdx + 1 && parts[statusEndIdx + 1]) {
+                            const rawAudio = parts[statusEndIdx + 1].toUpperCase();
+                            if (rawAudio === 'AUTO' || rawAudio === 'AUTOMATIC') {
+                                audioSource = 'AUTO';
+                            } else if (rawAudio === 'HDMI') {
+                                audioSource = 'HDMI';
+                            } else if (rawAudio.startsWith('ANA')) {
+                                audioSource = 'ANA';
+                            } else {
+                                audioSource = rawAudio;
+                            }
                         }
                     }
-                    
+
                     // Create or update transmitter
-                    this.createTransmitter(id, ip, edid, status, name, model);
+                    this.createTransmitter(id, ip, edid, status, name, model, audioSource);
                     parsedCount++;
-                    
-                    this.log.debug(`Parsed transmitter ${id}: status=${status}, edid=${edid}, ip=${ip}, model=${model}, name=${name}`);
+
+                    this.log.debug(`Parsed transmitter ${id}: status=${status}, edid=${edid}, ip=${ip}, model=${model}, name=${name}, audioSource=${audioSource}`);
                 }
             }
             
@@ -1338,398 +1453,6 @@ handleData(data) {
         }
         
         this.log.debug(`Parsed ${parsedCount} transmitters from status response`);
-    }
-
-    async ensureReceiverObjects(id) {
-        const prefix = `receivers.${id}`;
-        
-        // Create main channel
-        await this.setObjectNotExists(prefix, {
-            type: 'channel',
-            common: {
-                name: `Receiver ${id}`
-            },
-            native: {}
-        });
-        
-        // Create all states
-        const states = [
-            { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
-            { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name', write: true },
-            { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
-            { id: 'route', name: 'Current Source', type: 'string', role: 'level', write: true },
-            { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'info' },
-            { id: 'mode', name: 'Operation Mode', type: 'string', role: 'info' },
-            { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
-            { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
-            { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
-            { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' }
-        ];
-        
-        for (const state of states) {
-            await this.setObjectNotExists(`${prefix}.${state.id}`, {
-                type: 'state',
-                common: {
-                    name: state.name,
-                    type: state.type,
-                    role: state.role,
-                    read: true,
-                    write: state.write || false
-                },
-                native: {}
-            });
-        }
-    }
-    
-    async ensureTransmitterObjectsExist(id, name) {
-        const txId = `transmitters.${id}`;
-        
-        // Create the channel if it doesn't exist
-        await this.setObjectNotExistsAsync(txId, {
-            type: 'channel',
-            common: {
-                name: name || `Transmitter ${id}`
-            },
-            native: {}
-        });
-        
-        // Create all standard states
-        await this.setObjectNotExistsAsync(`${txId}.id`, {
-            type: 'state',
-            common: {
-                name: 'Transmitter ID',
-                type: 'string',
-                role: 'info.name',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        await this.setObjectNotExistsAsync(`${txId}.name`, {
-            type: 'state',
-            common: {
-                name: 'Transmitter Name',
-                type: 'string',
-                role: 'info.name',
-                read: true,
-                write: true
-            },
-            native: {}
-        });
-        
-        await this.setObjectNotExistsAsync(`${txId}.ip`, {
-            type: 'state',
-            common: {
-                name: 'IP Address',
-                type: 'string',
-                role: 'info.ip',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        await this.setObjectNotExistsAsync(`${txId}.connected`, {
-            type: 'state',
-            common: {
-                name: 'Connected',
-                type: 'boolean',
-                role: 'indicator.connection',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        await this.setObjectNotExistsAsync(`${txId}.edid`, {
-            type: 'state',
-            common: {
-                name: 'EDID Setting',
-                type: 'string',
-                role: 'info',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        // Create version state
-        await this.setObjectNotExistsAsync(`${txId}.version`, {
-            type: 'state',
-            common: {
-                name: 'Firmware Version',
-                type: 'string',
-                role: 'info.firmware',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        // Create MAC address state
-        await this.setObjectNotExistsAsync(`${txId}.mac`, {
-            type: 'state',
-            common: {
-                name: 'MAC Address',
-                type: 'string',
-                role: 'info.mac',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        // Create model state
-        await this.setObjectNotExistsAsync(`${txId}.model`, {
-            type: 'state',
-            common: {
-                name: 'Product Model',
-                type: 'string',
-                role: 'info',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-        
-        // Create preview URL state
-        await this.setObjectNotExistsAsync(`${txId}.previewUrl`, {
-            type: 'state',
-            common: {
-                name: 'Preview Image URL',
-                type: 'string',
-                role: 'url',
-                read: true,
-                write: false
-            },
-            native: {}
-        });
-    }
-
-    /**
- * Process transmitter information
- * @param {string} data - Transmitter data
- */
-    processTransmitterInfo(data) {
-        this.log.info(`Processing transmitter info data, length: ${data.length} bytes`);
-        
-        // Split into lines for easier processing
-        const lines = data.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-        
-        // Find the line with the transmitter ID and data
-        let dataLine = '';
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            // Look for a line that starts with digits followed by spaces and "On" or "Off"
-            if (/^\d+\s+(On|Off)/.test(line)) {
-                dataLine = line;
-                break;
-            }
-        }
-        
-        if (!dataLine) {
-            this.log.warn('Could not find transmitter data line');
-            return;
-        }
-        
-        this.log.debug(`Found data line: "${dataLine}"`);
-        
-        // Split the line by whitespace
-        const parts = dataLine.split(/\s+/);
-        
-        // Ensure we have at least 7 parts
-        if (parts.length < 7) {
-            this.log.warn(`Data line has too few parts: ${parts.length}`);
-            return;
-        }
-        
-        // Extract the parts directly by position
-        const id = parts[0].padStart(3, '0');
-        const netStatus = parts[1] === 'On';
-        const sigStatus = parts[2] === 'On';
-        const version = parts[3];
-        const edid = parts[4];
-        const mcastStatus = parts[5] === 'On';
-        
-        // Name is everything from position 6 to the end, joined back together
-        const name = parts.slice(6).join(' ');
-        
-        // Status is both net and sig being on
-        const status = netStatus && sigStatus;
-        
-        // Find IP address
-        let ip = '';
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) {
-                const ipMatch = lines[i].match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-                if (ipMatch) {
-                    ip = ipMatch[1];
-                    break;
-                }
-            }
-        }
-        
-        // Find MAC address
-        let mac = '';
-        for (let i = 0; i < lines.length; i++) {
-            const macMatch = lines[i].match(/([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})/);
-            if (macMatch) {
-                mac = macMatch[0];
-                break;
-            }
-        }
-        
-        // For model, often blank in your data
-        let model = '';
-        
-        this.log.info(`Extracted data for TX ${id}:`);
-        this.log.info(`  Name: "${name}"`);
-        this.log.info(`  IP: ${ip}`);
-        this.log.info(`  Status: ${status}`);
-        this.log.info(`  EDID: ${edid}`);
-        this.log.info(`  Version: ${version}`);
-        this.log.info(`  MAC: ${mac}`);
-        
-        // Create transmitter objects first
-        this.setObjectNotExistsAsync(`transmitters.${id}`, {
-            type: 'channel',
-            common: {
-                name: name || `Transmitter ${id}`
-            },
-            native: {}
-        }).then(() => {
-            // Create all required states
-            return Promise.all([
-                this.setObjectNotExistsAsync(`transmitters.${id}.id`, {
-                    type: 'state',
-                    common: {
-                        name: 'Transmitter ID',
-                        type: 'string',
-                        role: 'info.name',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.name`, {
-                    type: 'state',
-                    common: {
-                        name: 'Transmitter Name',
-                        type: 'string',
-                        role: 'info.name',
-                        read: true,
-                        write: true
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.ip`, {
-                    type: 'state',
-                    common: {
-                        name: 'IP Address',
-                        type: 'string',
-                        role: 'info.ip',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.connected`, {
-                    type: 'state',
-                    common: {
-                        name: 'Connected',
-                        type: 'boolean',
-                        role: 'indicator.connection',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.edid`, {
-                    type: 'state',
-                    common: {
-                        name: 'EDID Setting',
-                        type: 'string',
-                        role: 'info',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.version`, {
-                    type: 'state',
-                    common: {
-                        name: 'Firmware Version',
-                        type: 'string',
-                        role: 'info.firmware',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.mac`, {
-                    type: 'state',
-                    common: {
-                        name: 'MAC Address',
-                        type: 'string',
-                        role: 'info.mac',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.model`, {
-                    type: 'state',
-                    common: {
-                        name: 'Product Model',
-                        type: 'string',
-                        role: 'info',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                }),
-                this.setObjectNotExistsAsync(`transmitters.${id}.previewUrl`, {
-                    type: 'state',
-                    common: {
-                        name: 'Preview Image URL',
-                        type: 'string',
-                        role: 'url',
-                        read: true,
-                        write: false
-                    },
-                    native: {}
-                })
-            ]);
-        }).then(() => {
-            // Now set all the state values
-            this.setState(`transmitters.${id}.id`, id, true);
-            this.setState(`transmitters.${id}.name`, name, true);
-            this.setState(`transmitters.${id}.ip`, ip, true);
-            this.setState(`transmitters.${id}.connected`, status, true);
-            this.setState(`transmitters.${id}.edid`, edid, true);
-            this.setState(`transmitters.${id}.version`, version, true);
-            this.setState(`transmitters.${id}.mac`, mac, true);
-            this.setState(`transmitters.${id}.model`, model, true);
-            
-            // Generate preview URL
-            if (ip) {
-                const timestamp = Date.now();
-                const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${ip}&capwidth=240&time=${timestamp}`;
-                this.setState(`transmitters.${id}.previewUrl`, previewUrl, true);
-            }
-            
-            // Update the channel name as well
-            this.extendObjectAsync(`transmitters.${id}`, {
-                common: {
-                    name: name
-                }
-            });
-        }).catch(err => {
-            this.log.error(`Error updating transmitter ${id}: ${err.message}`);
-        });
     }
 
     /**
@@ -1767,29 +1490,35 @@ handleData(data) {
                 const parts = line.split(/\s+/);
                 
                 // Only process if we have at least the basic parts
-                if (parts.length >= 6) {
+                if (parts.length >= 5) {
                     const id = parts[0].padStart(3, '0');
-                    const currentTx = parts[1].padStart(3, '0'); 
+                    const currentTx = parts[1].padStart(3, '0');
                     const ip = parts[2];
-                    
-                    // Status is typically in format "On/On" or "On /Off"
-                    const statusPart = parts[3];
-                    const status = statusPart.startsWith('On');
-                    
-                    const resolution = parts[4];
-                    
+
+                    // Status is "On/Off" (single part) or "On /On" (split into two parts)
+                    let status = false;
+                    let statusEndIdx = 3;
+                    if (parts[3]) {
+                        if (parts[3].includes('/')) {
+                            status = parts[3].startsWith('On');
+                            statusEndIdx = 4;
+                        } else if (parts.length > 4 && parts[4] && parts[4].startsWith('/')) {
+                            status = parts[3] === 'On';
+                            statusEndIdx = 5;
+                        } else {
+                            status = parts[3].startsWith('On');
+                            statusEndIdx = 4;
+                        }
+                    }
+
+                    const resolution = parts[statusEndIdx] || '';
+
                     // Mode (MX = Matrix, VW = Video Wall)
-                    let mode = '';
-                    if (parts.length >= 6) {
-                        mode = parts[5];
-                    }
-                    
+                    const mode = parts[statusEndIdx + 1] || '';
+
                     // Try to extract model if available
-                    let model = '';
-                    if (parts.length >= 7 && parts[6] !== '') {
-                        model = parts[6];
-                    }
-                    
+                    const model = parts[statusEndIdx + 2] || '';
+
                     // Create or update receiver
                     this.createReceiver(id, ip, currentTx, status, resolution, undefined, mode, model);
                     parsedCount++;
@@ -1937,22 +1666,27 @@ handleData(data) {
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
             { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
             { id: 'edid', name: 'EDID Setting', type: 'string', role: 'info' },
+            { id: 'audioSource', name: 'Audio Source', type: 'string', role: 'level', write: true, states: { 'AUTO': 'Auto', 'HDMI': 'HDMI', 'ANA': 'Analogue L/R' } },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
             { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
             { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
             { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' }
         ];
-        
+
         for (const state of states) {
+            const common = {
+                name: state.name,
+                type: state.type,
+                role: state.role,
+                read: true,
+                write: state.write || false
+            };
+            if (state.states) {
+                common.states = state.states;
+            }
             await this.setObjectNotExists(`${prefix}.${state.id}`, {
                 type: 'state',
-                common: {
-                    name: state.name,
-                    type: state.type,
-                    role: state.role,
-                    read: true,
-                    write: state.write || false
-                },
+                common,
                 native: {}
             });
         }
@@ -2180,6 +1914,8 @@ async ensureReceiverObjects(id) {
         { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
         { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
         { id: 'route', name: 'Current Source', type: 'string', role: 'level', write: true },
+        { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'level', write: true },
+        { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'level', write: true },
         { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'info' },
         { id: 'mode', name: 'Operation Mode', type: 'string', role: 'info' },
         { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
@@ -2187,314 +1923,25 @@ async ensureReceiverObjects(id) {
         { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
         { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' }
     ];
-    
+
     for (const state of states) {
+        const common = {
+            name: state.name,
+            type: state.type,
+            role: state.role,
+            read: true,
+            write: state.write || false
+        };
+        if (state.states) {
+            common.states = state.states;
+        }
         await this.setObjectNotExists(`${prefix}.${state.id}`, {
             type: 'state',
-            common: {
-                name: state.name,
-                type: state.type,
-                role: state.role,
-                read: true,
-                write: state.write || false
-            },
+            common,
             native: {}
         });
     }
 }
-
-    /**
-     * Create or update a transmitter with additional details
-     * @param {string} id - Transmitter ID
-     * @param {string} ip - IP address
-     * @param {string} edid - EDID setting
-     * @param {boolean} status - Connection status
-     * @param {string} name - Display name
-     * @param {string} version - Firmware version
-     * @param {string} mac - MAC address
-     */
-    createOrUpdateTransmitter(id, ip, edid, status, name, version, mac, model) {
-        const txId = `transmitters.${id}`;
-        
-        // Save to internal state
-        if (!this.transmitterStates[id]) {
-            this.transmitterStates[id] = {
-                id,
-                ip: ip || '',
-                status: status || false,
-                edid: edid || '',
-                name: name || `Transmitter ${id}`,
-                version: version || '',
-                mac: mac || '',
-                model: model || ''
-            };
-            
-            // Create the channel if it doesn't exist
-            this.setObjectNotExistsAsync(txId, {
-                type: 'channel',
-                common: {
-                    name: this.transmitterStates[id].name
-                },
-                native: {}
-            });
-            
-            // Create all the states...
-            // (existing code for creating states)
-            
-            // Add model state if not already added
-            this.setObjectNotExistsAsync(`${txId}.model`, {
-                type: 'state',
-                common: {
-                    name: 'Product Model',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-        }
-        
-        // Update states with new values if provided
-        if (id) this.setState(`${txId}.id`, id, true);
-        if (ip) this.setState(`${txId}.ip`, ip, true);
-        if (status !== undefined) this.setState(`${txId}.connected`, status, true);
-        if (edid) this.setState(`${txId}.edid`, edid, true);
-        if (version) this.setState(`${txId}.version`, version, true);
-        if (mac) this.setState(`${txId}.mac`, mac, true);
-        if (model) this.setState(`${txId}.model`, model, true);
-        
-        if (name) {
-            this.setState(`${txId}.name`, name, true);
-            
-            // Also update the channel name
-            this.extendObjectAsync(txId, {
-                common: {
-                    name: name
-                }
-            });
-            
-            // Update internal state
-            this.transmitterStates[id].name = name;
-        }
-    }
-
-    /**
-     * Create or update a receiver with additional details
-     * @param {string} id - Receiver ID
-     * @param {string} ip - IP address
-     * @param {string} currentTx - Current transmitter ID
-     * @param {boolean} status - Connection status
-     * @param {string} resolution - Output resolution
-     * @param {string} name - Display name
-     * @param {string} mode - Operational mode
-     * @param {string} version - Firmware version
-     * @param {string} mac - MAC address
-     */
-    createOrUpdateReceiver(id, ip, currentTx, status, resolution, name, mode, version, mac, model) {
-        const rxId = `receivers.${id}`;
-        
-        // Save to internal state
-        if (!this.receiverStates[id]) {
-            this.receiverStates[id] = {
-                id,
-                ip: ip || '',
-                status: status || false,
-                currentTx: currentTx || '',
-                resolution: resolution || '',
-                name: name || `Receiver ${id}`,
-                mode: mode || '',
-                version: version || '',
-                mac: mac || '',
-                model: model || ''
-            };
-            
-            // Create the channel if it doesn't exist
-            this.setObjectNotExistsAsync(rxId, {
-                type: 'channel',
-                common: {
-                    name: this.receiverStates[id].name
-                },
-                native: {}
-            });
-            
-            // Create standard states
-            this.setObjectNotExistsAsync(`${rxId}.id`, {
-                type: 'state',
-                common: {
-                    name: 'Receiver ID',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            this.setObjectNotExistsAsync(`${rxId}.name`, {
-                type: 'state',
-                common: {
-                    name: 'Receiver Name',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: true
-                },
-                native: {}
-            });
-            
-            this.setObjectNotExistsAsync(`${rxId}.ip`, {
-                type: 'state',
-                common: {
-                    name: 'IP Address',
-                    type: 'string',
-                    role: 'info.ip',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            this.setObjectNotExistsAsync(`${rxId}.connected`, {
-                type: 'state',
-                common: {
-                    name: 'Connected',
-                    type: 'boolean',
-                    role: 'indicator.connection',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            this.setObjectNotExistsAsync(`${rxId}.route`, {
-                type: 'state',
-                common: {
-                    name: 'Current Source',
-                    type: 'string',
-                    role: 'level',
-                    read: true,
-                    write: true
-                },
-                native: {}
-            });
-            
-            this.setObjectNotExistsAsync(`${rxId}.resolution`, {
-                type: 'state',
-                common: {
-                    name: 'Output Resolution',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            // Add mode state
-            this.setObjectNotExistsAsync(`${rxId}.mode`, {
-                type: 'state',
-                common: {
-                    name: 'Operation Mode',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            // Add version state
-            this.setObjectNotExistsAsync(`${rxId}.version`, {
-                type: 'state',
-                common: {
-                    name: 'Firmware Version',
-                    type: 'string',
-                    role: 'info.firmware',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            // Add MAC address state
-            this.setObjectNotExistsAsync(`${rxId}.mac`, {
-                type: 'state',
-                common: {
-                    name: 'MAC Address',
-                    type: 'string',
-                    role: 'info.mac',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            // Add model state
-            this.setObjectNotExistsAsync(`${rxId}.model`, {
-                type: 'state',
-                common: {
-                    name: 'Product Model',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-            
-            // Add preview URL state
-            this.setObjectNotExistsAsync(`${rxId}.previewUrl`, {
-                type: 'state',
-                common: {
-                    name: 'Preview Image URL',
-                    type: 'string',
-                    role: 'url',
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-        }
-        
-        // Update states with new values if provided
-        if (id) this.setState(`${rxId}.id`, id, true);
-        if (ip) this.setState(`${rxId}.ip`, ip, true);
-        if (status !== undefined) this.setState(`${rxId}.connected`, status, true);
-        if (currentTx) this.setState(`${rxId}.route`, currentTx, true);
-        if (resolution) this.setState(`${rxId}.resolution`, resolution, true);
-        if (mode) this.setState(`${rxId}.mode`, mode, true);
-        if (version) this.setState(`${rxId}.version`, version, true);
-        if (mac) this.setState(`${rxId}.mac`, mac, true);
-        if (model) this.setState(`${rxId}.model`, model, true);
-        
-        if (name) {
-            this.setState(`${rxId}.name`, name, true);
-            
-            // Also update the channel name
-            this.extendObjectAsync(rxId, {
-                common: {
-                    name: name
-                }
-            });
-            
-            // Update internal state
-            this.receiverStates[id].name = name;
-        }
-        
-        // For Receiver preview, we need to use the connected transmitter's IP
-        let sourceIp = '';
-        if (this.transmitterStates[currentTx]) {
-            sourceIp = this.transmitterStates[currentTx].ip;
-        }
-        
-        // Generate a preview URL - only if we have a source IP
-        if (sourceIp) {
-            const timestamp = Date.now();
-            const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
-            this.setState(`${rxId}.previewUrl`, previewUrl, true);
-        }
-    }
 
     /**
      * Create or update a transmitter object using setObjectNotExists
@@ -2505,7 +1952,7 @@ async ensureReceiverObjects(id) {
      * @param {string} name - Optional name
      * @param {string} model - Optional model information
      */
-    async createTransmitter(id, ip, edid, status, name, model) {
+    async createTransmitter(id, ip, edid, status, name, model, audioSource) {
         const txId = `transmitters.${id}`;
         let statusBool = false;
         
@@ -2622,6 +2069,20 @@ async ensureReceiverObjects(id) {
             });
         }
 
+        // Always ensure new states exist (even for previously created transmitters)
+        await this.setObjectNotExistsAsync(`${txId}.audioSource`, {
+            type: 'state',
+            common: {
+                name: 'Audio Source',
+                type: 'string',
+                role: 'level',
+                read: true,
+                write: true,
+                states: { 'AUTO': 'Auto', 'HDMI': 'HDMI', 'ANA': 'Analogue L/R' }
+            },
+            native: {}
+        });
+
         // Update state values
         await this.setState(`${txId}.id`, id, true);
         await this.setState(`${txId}.ip`, ip, true);
@@ -2636,7 +2097,13 @@ async ensureReceiverObjects(id) {
             // Update internal state
             this.transmitterStates[id].model = model;
         }
-        
+
+        if (audioSource) {
+            // STATUS is ground truth — always update to reflect the actual device state
+            await this.setState(`${txId}.audioSource`, audioSource, true);
+            this.transmitterStates[id].audioSource = audioSource;
+        }
+
         if (name) {
             await this.setState(`${txId}.name`, name, true);
             
@@ -2818,6 +2285,30 @@ async ensureReceiverObjects(id) {
             });
         }
 
+        // Always ensure new states exist (even for previously created receivers)
+        await this.setObjectNotExistsAsync(`${rxId}.videoRoute`, {
+            type: 'state',
+            common: {
+                name: 'Video Source',
+                type: 'string',
+                role: 'level',
+                read: true,
+                write: true
+            },
+            native: {}
+        });
+        await this.setObjectNotExistsAsync(`${rxId}.audioRoute`, {
+            type: 'state',
+            common: {
+                name: 'Audio Source',
+                type: 'string',
+                role: 'level',
+                read: true,
+                write: true
+            },
+            native: {}
+        });
+
         // Update state values
         await this.setState(`${rxId}.id`, id, true);
         await this.setState(`${rxId}.ip`, ip, true);
@@ -2902,8 +2393,12 @@ async ensureReceiverObjects(id) {
                 // Update all receiver states
                 for (const rxId in this.receiverStates) {
                     this.setState(`receivers.${rxId}.route`, txId, true);
+                    this.setState(`receivers.${rxId}.videoRoute`, txId, true);
+                    this.setState(`receivers.${rxId}.audioRoute`, txId, true);
                     this.receiverStates[rxId].currentTx = txId;
-                    
+                    this.receiverStates[rxId].currentVideoTx = txId;
+                    this.receiverStates[rxId].currentAudioTx = txId;
+
                     // Update preview URL if we have a source IP
                     if (sourceIp) {
                         const timestamp = Date.now();
@@ -2914,6 +2409,67 @@ async ensureReceiverObjects(id) {
             })
             .catch(err => {
                 this.log.error(`Error routing video to all: ${err.message}`);
+            });
+    }
+
+    /**
+     * Route video only from a transmitter to all receivers
+     * @param {string} txId - Transmitter ID
+     */
+    routeVideoOnlyToAll(txId) {
+        if (!this.connected) {
+            this.log.warn('Cannot route video, not connected');
+            return;
+        }
+
+        const command = `OUTALLVFR${txId.padStart(3, '0')}`;
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully routed video from TX ${txId} to all receivers`);
+
+                for (const rxId in this.receiverStates) {
+                    this.setState(`receivers.${rxId}.videoRoute`, txId, true);
+                    this.receiverStates[rxId].currentVideoTx = txId;
+
+                    if (this.transmitterStates[txId]) {
+                        const sourceIp = this.transmitterStates[txId].ip;
+                        if (sourceIp) {
+                            const timestamp = Date.now();
+                            const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                            this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
+                        }
+                    }
+                }
+            })
+            .catch(err => {
+                this.log.error(`Error routing video to all: ${err.message}`);
+            });
+    }
+
+    /**
+     * Route audio only from a transmitter to all receivers
+     * @param {string} txId - Transmitter ID
+     */
+    routeAudioToAll(txId) {
+        if (!this.connected) {
+            this.log.warn('Cannot route audio, not connected');
+            return;
+        }
+
+        const command = `OUTALLAFR${txId.padStart(3, '0')}`;
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully routed audio from TX ${txId} to all receivers`);
+
+                for (const rxId in this.receiverStates) {
+                    this.setState(`receivers.${rxId}.audioRoute`, txId, true);
+                    this.receiverStates[rxId].currentAudioTx = txId;
+                }
+            })
+            .catch(err => {
+                this.log.error(`Error routing audio to all: ${err.message}`);
             });
     }
 }
