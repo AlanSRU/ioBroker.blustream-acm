@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "blustream-acm200",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "news": {
+      "0.2.1": {
+        "en": "Bundle adapter icon in the npm tarball",
+        "de": "Bundle Adapter-Symbol im npm tarball",
+        "ru": "Иконка адаптера в npm tarball",
+        "pt": "Ícone do adaptador do pacote no tarball npm",
+        "nl": "Bundeladapterpictogram in de tarball npm",
+        "fr": "Icône de l'adaptateur dans le tarball de npm",
+        "it": "Icona adattatore Bundle nel tarball npm",
+        "es": "Icono de adaptador de bucle en la npm tarball",
+        "pl": "Ikona adaptera do zestawu w planszy npm",
+        "uk": "Bundle значок адаптера в гніздо npm tarball",
+        "zh-cn": "Npm 沥青球中的套装适配器图标"
+      },
       "0.2.0": {
         "en": "Add `routeAll`, `routeAllVideo`, `routeAllAudio` commands to route a source to every display in one call\nModernized internal tooling (release-script, ESLint 9, ioBroker testing actions, trusted publishing)",
         "de": "Fügen Sie `routeAll`, `routeAllVideo`, `routeAllAudio`-Befehle hinzu, um eine Quelle zu jeder Anzeige in einem Anruf zu führen\nModerne interne Tooling (Release-script, ESLint 9, ioBroker-Testaktionen, vertrauenswürdiges Publishing)",
