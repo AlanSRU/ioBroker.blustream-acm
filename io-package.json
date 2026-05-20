@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "blustream-acm200",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "news": {
+      "0.2.0": {
+        "en": "Add `routeAll`, `routeAllVideo`, `routeAllAudio` commands to route a source to every display in one call\nModernized internal tooling (release-script, ESLint 9, ioBroker testing actions, trusted publishing)",
+        "de": "Fügen Sie `routeAll`, `routeAllVideo`, `routeAllAudio`-Befehle hinzu, um eine Quelle zu jeder Anzeige in einem Anruf zu führen\nModerne interne Tooling (Release-script, ESLint 9, ioBroker-Testaktionen, vertrauenswürdiges Publishing)",
+        "ru": "Добавьте команды «RouteAll», «RouteAllVideo», «RouteAllAudio» для маршрутизации источника на каждый дисплей за один вызов\nМодернизированный внутренний инструментарий (релиз-скрипт, ESLint 9, тестирование ioBroker, доверенная публикация)",
+        "pt": "Adicionar `routeAll`, `routeAllVideo`, `routeAllAudio` comandos para rotear uma fonte para cada exibição em uma chamada\nFerramentas internas modernizadas (lançamento-escrito, ESLint 9, ações de teste do ioBroker, publicação confiável)",
+        "nl": "Voeg de commando's \"AllAllAllAllVideo,\" \"AllAllAudio\" en \"AllAudio\" toe om een bron naar elke weergave in één gesprek te leiden\nModerne interne tooling (release-script, ESLint 9, ioBroker testacties, vertrouwde publicatie)",
+        "fr": "Ajouter `routeAll`, `routeAllVideo`, `routeAllAudio` commandes pour acheminer une source à chaque affichage en un seul appel\nOutils internes modernisés (release-script, ESLint 9, ioBroker testing actions, publication fiable)",
+        "it": "Aggiungi `routeAll`, `routeAllVideo`, comando `routeAllAudio` per indirizzare una sorgente ad ogni display in una sola chiamata\nStrumenti interni modernizzati (release-script, ESLint 9, ioBroker azioni di test, pubblicazione di fiducia)",
+        "es": "Añadir `routeAll`, `routeAllVideo`, `routeAllAudio` comandos to route a source to every display in one call\nHerramientas internas modernizadas (release-script, ESLint 9, ioBroker testing actions, reliable publishing)",
+        "pl": "Dodaj 'routeAll', 'routeAllVideo', 'routeAllAudio' komendy, aby przekierować źródło do każdego wyświetlacza w jednym wywołaniu\nZmodernizowane oprzyrządowanie wewnętrzne (release- script, ESLint 9, joBroker testing actions, zaufane publikacje)",
+        "uk": "Додайте `routeAll`, `routeAllVideo``, `routeAllAudio` для маршруту джерело до кожного дисплея\nМодернізований внутрішній інструментарій (видання-script, ESLint 9, ioBroker, перевірені публікації)",
+        "zh-cn": "添加`routeAll'、`routeAllVideo ' 、`routeAllAudio ' 命令,在一个呼叫中将一个来源传送到每个显示器\n现代化的内部工具化(发布-script,ESLint 9,ioBroker测试动作,可信出版)"
+      },
       "0.1.0": {
         "en": "Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection",
         "de": "Erstveröffentlichung: Sender-/Empfängererkennung, Video- und Audio-Routing (kombiniert und unabhängig), Auswahl der Sender-Audioquelle",
