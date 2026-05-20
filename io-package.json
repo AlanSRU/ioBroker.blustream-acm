@@ -28,19 +28,6 @@
         "pl": "Dodaj 'routeAll', 'routeAllVideo', 'routeAllAudio' komendy, aby przekierować źródło do każdego wyświetlacza w jednym wywołaniu\nZmodernizowane oprzyrządowanie wewnętrzne (release- script, ESLint 9, joBroker testing actions, zaufane publikacje)",
         "uk": "Додайте `routeAll`, `routeAllVideo``, `routeAllAudio` для маршруту джерело до кожного дисплея\nМодернізований внутрішній інструментарій (видання-script, ESLint 9, ioBroker, перевірені публікації)",
         "zh-cn": "添加`routeAll'、`routeAllVideo ' 、`routeAllAudio ' 命令,在一个呼叫中将一个来源传送到每个显示器\n现代化的内部工具化(发布-script,ESLint 9,ioBroker测试动作,可信出版)"
-      },
-      "0.1.0": {
-        "en": "Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection",
-        "de": "Erstveröffentlichung: Sender-/Empfängererkennung, Video- und Audio-Routing (kombiniert und unabhängig), Auswahl der Sender-Audioquelle",
-        "ru": "Первоначальная версия: обнаружение передатчика/приемника, маршрутизация видео и аудио (комбинированная и независимая), выбор источника звука передатчика.",
-        "pt": "Versão inicial: descoberta de transmissor/receptor, roteamento de vídeo e áudio (combinado e independente), seleção de fonte de áudio do transmissor",
-        "nl": "Eerste release: ontdekking van zender/ontvanger, video- en audioroutering (gecombineerd en onafhankelijk), selectie van audiobron van zender",
-        "fr": "Version initiale : découverte de l'émetteur/récepteur, routage vidéo et audio (combiné et indépendant), sélection de la source audio de l'émetteur",
-        "it": "Versione iniziale: rilevamento trasmettitore/ricevitore, routing video e audio (combinato e indipendente), selezione della sorgente audio del trasmettitore",
-        "es": "Versión inicial: descubrimiento de transmisor/receptor, enrutamiento de video y audio (combinado e independiente), selección de fuente de audio del transmisor",
-        "pl": "Wersja pierwsza: wykrywanie nadajnika/odbiornika, routing wideo i audio (połączone i niezależne), wybór źródła dźwięku nadajnika",
-        "uk": "Початковий випуск: виявлення передавача/приймача, маршрутизація відео та аудіо (комбінована та незалежна), вибір джерела звуку передавача",
-        "zh-cn": "初始版本：发射器/接收器发现、视频和音频路由（组合和独立）、发射器音频源选择"
       }
     },
     "titleLang": {
