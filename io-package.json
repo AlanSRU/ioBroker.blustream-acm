@@ -1,33 +1,20 @@
 {
   "common": {
     "name": "blustream-acm200",
-    "version": "1.1.0",
+    "version": "0.1.0",
     "news": {
-      "1.1.0": {
-        "en": "Add separate audio and video routing (VFR/AFR commands) and transmitter audio source selection (AUTO/HDMI/ANA)",
-        "de": "Separates Audio- und Video-Routing (VFR-/AFR-Befehle) sowie Auswahl der Audioquelle am Sender (AUTO/HDMI/ANA)",
-        "ru": "Раздельная маршрутизация аудио и видео (команды VFR/AFR) и выбор источника звука передатчика (AUTO/HDMI/ANA)",
-        "pt": "Roteamento separado de áudio e vídeo (comandos VFR/AFR) e seleção da fonte de áudio do transmissor (AUTO/HDMI/ANA)",
-        "nl": "Aparte audio- en video-routing (VFR/AFR-commando's) en zenderaudiobronselectie (AUTO/HDMI/ANA)",
-        "fr": "Routage audio et vidéo séparés (commandes VFR/AFR) et sélection de la source audio de l'émetteur (AUTO/HDMI/ANA)",
-        "it": "Routing audio e video separati (comandi VFR/AFR) e selezione della sorgente audio del trasmettitore (AUTO/HDMI/ANA)",
-        "es": "Enrutamiento separado de audio y vídeo (comandos VFR/AFR) y selección de fuente de audio del transmisor (AUTO/HDMI/ANA)",
-        "pl": "Oddzielne kierowanie audio i wideo (polecenia VFR/AFR) oraz wybór źródła dźwięku nadajnika (AUTO/HDMI/ANA)",
-        "zh-cn": "增加独立的音视频路由（VFR/AFR 命令）以及发射器音频源选择（AUTO/HDMI/ANA）",
-        "uk": "Додайте окрему маршрутизацію аудіо та відео (команди VFR/AFR) і вибір джерела аудіо передавача (AUTO/HDMI/ANA)"
-      },
-      "1.0.0": {
-        "en": "Initial release",
-        "de": "Erstveröffentlichung",
-        "ru": "Начальная версия",
-        "pt": "Lançamento inicial",
-        "nl": "Initiële uitgave",
-        "fr": "Première version",
-        "it": "Versione iniziale",
-        "es": "Versión inicial",
-        "pl": "Pierwsze wydanie",
-        "zh-cn": "首次出版",
-        "uk": "Початковий випуск"
+      "0.1.0": {
+        "en": "Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection",
+        "de": "Erstveröffentlichung: Sender-/Empfängererkennung, Video- und Audio-Routing (kombiniert und unabhängig), Auswahl der Sender-Audioquelle",
+        "ru": "Первоначальная версия: обнаружение передатчика/приемника, маршрутизация видео и аудио (комбинированная и независимая), выбор источника звука передатчика.",
+        "pt": "Versão inicial: descoberta de transmissor/receptor, roteamento de vídeo e áudio (combinado e independente), seleção de fonte de áudio do transmissor",
+        "nl": "Eerste release: ontdekking van zender/ontvanger, video- en audioroutering (gecombineerd en onafhankelijk), selectie van audiobron van zender",
+        "fr": "Version initiale : découverte de l'émetteur/récepteur, routage vidéo et audio (combiné et indépendant), sélection de la source audio de l'émetteur",
+        "it": "Versione iniziale: rilevamento trasmettitore/ricevitore, routing video e audio (combinato e indipendente), selezione della sorgente audio del trasmettitore",
+        "es": "Versión inicial: descubrimiento de transmisor/receptor, enrutamiento de video y audio (combinado e independiente), selección de fuente de audio del transmisor",
+        "pl": "Wersja pierwsza: wykrywanie nadajnika/odbiornika, routing wideo i audio (połączone i niezależne), wybór źródła dźwięku nadajnika",
+        "uk": "Початковий випуск: виявлення передавача/приймача, маршрутизація відео та аудіо (комбінована та незалежна), вибір джерела звуку передавача",
+        "zh-cn": "初始版本：发射器/接收器发现、视频和音频路由（组合和独立）、发射器音频源选择"
       }
     },
     "titleLang": {
