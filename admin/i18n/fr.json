@@ -1,0 +1,12 @@
+{
+    "Advanced": "Avancé",
+    "Advanced Settings": "Paramètres avancés",
+    "Command Timeout (ms)": "Délai d'expiration de la commande (ms)",
+    "Connection Settings": "Paramètres de connexion",
+    "IP Address": "Adresse IP",
+    "Main settings": "Paramètres principaux",
+    "Password": "Mot de passe",
+    "Polling Interval (ms)": "Intervalle d'interrogation (ms)",
+    "Port": "Port",
+    "Username": "Nom d'utilisateur"
+}

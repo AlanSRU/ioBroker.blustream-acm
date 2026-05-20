@@ -1,0 +1,12 @@
+{
+    "Advanced": "Передовой",
+    "Advanced Settings": "Расширенные настройки",
+    "Command Timeout (ms)": "Тайм-аут команды (мс)",
+    "Connection Settings": "Настройки подключения",
+    "IP Address": "IP-адрес",
+    "Main settings": "Основные настройки",
+    "Password": "Пароль",
+    "Polling Interval (ms)": "Интервал опроса (мс)",
+    "Port": "Порт",
+    "Username": "Имя пользователя"
+}
