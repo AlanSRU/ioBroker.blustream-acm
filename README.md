@@ -1,126 +1,123 @@
 # ioBroker.blustream-acm200
 
-![Logo](admin/blustream-acm200.png)
-
 [![NPM version](https://img.shields.io/npm/v/iobroker.blustream-acm200.svg)](https://www.npmjs.com/package/iobroker.blustream-acm200)
 [![Downloads](https://img.shields.io/npm/dm/iobroker.blustream-acm200.svg)](https://www.npmjs.com/package/iobroker.blustream-acm200)
-[![Dependency Status](https://img.shields.io/david/yourgithub/iobroker.blustream-acm200.svg)](https://david-dm.org/yourgithub/iobroker.blustream-acm200)
-[![Known Vulnerabilities](https://snyk.io/test/github/yourgithub/ioBroker.blustream-acm200/badge.svg)](https://snyk.io/test/github/yourgithub/ioBroker.blustream-acm200)
+![Number of Installations](https://iobroker.live/badges/blustream-acm200-installed.svg)
+![Current version in stable repository](https://iobroker.live/badges/blustream-acm200-stable.svg)
 
 [![NPM](https://nodei.co/npm/iobroker.blustream-acm200.png?downloads=true)](https://nodei.co/npm/iobroker.blustream-acm200/)
 
+**Tests:** ![Test and Release](https://github.com/AlanSRU/ioBroker.blustream-acm200/workflows/Test%20and%20Release/badge.svg)
+
 ## Blustream ACM200 Matrix Controller for ioBroker
 
-This adapter allows you to control a Blustream ACM200 matrix controller for audio/video distribution over IP.
+Controls a Blustream ACM200 matrix controller for HDMI-over-IP audio/video distribution. Discovers connected transmitters and receivers via the ACM200's telnet interface and exposes routing/status states for each.
 
 ## Features
 
-* Automatic discovery of connected transmitters and receivers
-* Video/audio routing control
-* Status monitoring for all devices
-* Preview image support (requires separate preview service)
-* Integration with other ioBroker adapters
+- Automatic discovery of connected transmitters and receivers
+- Video/audio routing control (combined and independent per stream)
+- Transmitter audio source selection (AUTO / HDMI / ANA)
+- "Route to all displays" commands (audio+video, video only, audio only)
+- Status monitoring for all devices
+- Preview image support (requires separate preview service)
 
 ## Installation
 
-1. Install the adapter from NPM
-   ```
-   npm install iobroker.blustream-acm200
-   ```
-
-2. Add an instance of the adapter in the ioBroker admin interface
-
-3. Configure the adapter with the IP address and credentials for your ACM200 controller
+Install the adapter from the ioBroker admin interface (Adapters → search for "blustream").
 
 ## Configuration
 
 ### Main Settings
 
-* **IP Address**: The IP address of your ACM200 controller (default: 192.168.0.225)
-* **Port**: The Telnet port of your ACM200 controller (default: 23)
-* **Username**: The username for the ACM200 controller (default: admin)
-* **Password**: The password for the ACM200 controller (default: 1234)
+- **IP Address**: IP address of your ACM200 controller (default: 192.168.0.225)
+- **Port**: Telnet port (default: 23)
+- **Username**: ACM200 login (default: admin)
+- **Password**: ACM200 password (default: 1234) — encrypted at rest
 
 ### Advanced Settings
 
-* **Polling Interval**: How often to poll for status updates, in milliseconds (default: 30000)
-* **Command Timeout**: Timeout for commands sent to the ACM200, in milliseconds (default: 5000)
+- **Polling Interval (ms)**: How often to poll for status updates (default: 30000)
+- **Command Timeout (ms)**: Timeout for commands sent to the ACM200 (default: 5000)
 
 ## States
 
-The adapter creates the following states:
+### System
 
-### System States
+- `info.connection` — Connection status to the ACM200
+- `system.status.connected` — Same as info.connection (legacy)
+- `system.status.lastUpdate` — Timestamp of the last status update
+- `system.commands.refresh` — Trigger a manual refresh of all status information
+- `system.commands.refreshAll` — Force a complete state rebuild
+- `system.commands.routeAll` — Write a transmitter ID to route audio + video to all displays
+- `system.commands.routeAllVideo` — Write a transmitter ID to route video only to all displays
+- `system.commands.routeAllAudio` — Write a transmitter ID to route audio only to all displays
 
-* **system.status.connected**: Connection status to the ACM200
-* **system.status.lastUpdate**: Timestamp of the last status update
-* **system.commands.refresh**: Trigger a manual refresh of all status information
+### Transmitters (per transmitter)
 
-### Transmitter States (for each transmitter)
+- `transmitters.<id>.id` — Transmitter ID
+- `transmitters.<id>.name` — Display name
+- `transmitters.<id>.ip` — IP address
+- `transmitters.<id>.connected` — Connection status
+- `transmitters.<id>.edid` — EDID setting
+- `transmitters.<id>.audioSource` — Audio source selection (AUTO/HDMI/ANA)
+- `transmitters.<id>.previewUrl` — URL to preview image (if preview service is enabled)
 
-* **transmitters.[id].id**: Transmitter ID
-* **transmitters.[id].name**: Name of the transmitter
-* **transmitters.[id].ip**: IP address of the transmitter
-* **transmitters.[id].connected**: Connection status of the transmitter
-* **transmitters.[id].edid**: EDID setting of the transmitter
-* **transmitters.[id].previewUrl**: URL to the preview image
+### Receivers (per receiver)
 
-### Receiver States (for each receiver)
+- `receivers.<id>.id` — Receiver ID
+- `receivers.<id>.name` — Display name
+- `receivers.<id>.ip` — IP address
+- `receivers.<id>.connected` — Connection status
+- `receivers.<id>.route` — Combined audio+video route (write a transmitter ID)
+- `receivers.<id>.videoRoute` — Video-only route
+- `receivers.<id>.audioRoute` — Audio-only route
+- `receivers.<id>.resolution` — Output resolution
+- `receivers.<id>.previewUrl` — URL to preview image
 
-* **receivers.[id].id**: Receiver ID
-* **receivers.[id].name**: Name of the receiver
-* **receivers.[id].ip**: IP address of the receiver
-* **receivers.[id].connected**: Connection status of the receiver
-* **receivers.[id].route**: Current transmitter ID that the receiver is displaying
-* **receivers.[id].resolution**: Output resolution of the receiver
-* **receivers.[id].previewUrl**: URL to the preview image
+## Usage examples
 
-## Usage
-
-### Routing Video
-
-To route a transmitter (source) to a receiver (display), simply set the `receivers.[id].route` state to the transmitter ID:
-
-```javascript
-setState('blustream-acm200.0.receivers.001.route', '002');  // Route transmitter 2 to receiver 1
-```
-
-### Routing to All Receivers
-
-You can use a script to route a transmitter to all receivers:
+Route transmitter 2 to receiver 1:
 
 ```javascript
-// Route transmitter 3 to all receivers
-const adapter = 'blustream-acm200.0';
-const txId = '003';
-
-// Get all receivers
-$('state[id=' + adapter + '.receivers.*.id]').each(function(id, i) {
-    const rxId = id.split('.').pop();
-    setState(adapter + '.receivers.' + rxId + '.route', txId);
-});
+setState('blustream-acm200.0.receivers.001.route', '002');
 ```
 
-## Integration with Web Interface
+Route transmitter 3 to all receivers:
 
-This adapter works seamlessly with the provided drag and drop web interface. The web interface displays all transmitters and receivers with preview images and allows for intuitive routing.
+```javascript
+setState('blustream-acm200.0.system.commands.routeAll', '003');
+```
 
 ## Troubleshooting
 
-* If the adapter cannot connect to the ACM200, check the IP address and port settings
-* If transmitters or receivers are missing, try triggering a manual refresh using the `system.commands.refresh` state
-* Check the ioBroker logs for detailed error messages
+- If the adapter cannot connect, verify the IP address, port, and that the ACM200's telnet interface is enabled.
+- If transmitters or receivers are missing after start-up, trigger a refresh via `system.commands.refresh`.
+- Enable debug logging in Admin → instance → log level to see telnet traffic.
 
 ## Changelog
+<!--
+	Placeholder for the next version (at the beginning of the line):
+	### __WORK IN PROGRESS__
+-->
+### __WORK IN PROGRESS__
+- (Alan Paris) Add `routeAll`, `routeAllVideo`, `routeAllAudio` commands to route a source to every display in one call
+- (Alan Paris) Now requires Node.js 20+, js-controller 6.0.11+, admin 7.6.20+
+- (Alan Paris) Migrated admin UI to jsonConfig; passwords are now encrypted at rest
+- (Alan Paris) Modernized internal tooling (release-script, ESLint 9, ioBroker testing actions)
 
-### 1.0.0 (2023-10-01)
-* Initial release
+### 1.1.0 (2025-05-02)
+- (Alan Paris) Added separate audio and video routing (VFR/AFR commands)
+- (Alan Paris) Added transmitter audio source selection (AUTO/HDMI/ANA)
+
+### 1.0.0 (2025-05-02)
+- (Alan Paris) Initial release
 
 ## License
 
 MIT License
 
-Copyright (c) 2023 Your Name <your.email@example.com>
+Copyright (c) 2026 Alan Paris <alan.paris@scottish.rugby>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
