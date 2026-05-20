@@ -8,7 +8,7 @@
 'use strict';
 
 const utils = require('@iobroker/adapter-core');
-const net = require('net');
+const net = require('node:net');
 
 class BlustreamAcm200 extends utils.Adapter {
     constructor(options) {
@@ -16,16 +16,16 @@ class BlustreamAcm200 extends utils.Adapter {
             ...options,
             name: 'blustream-acm200',
         });
-    
+
         this.on('ready', this.onReady.bind(this));
         this.on('stateChange', this.onStateChange.bind(this));
         this.on('unload', this.onUnload.bind(this));
-    
+
         // Default settings
         this.host = '192.168.0.225'; // Default IP for ACM200
         this.port = 23; // Default Telnet port
         this.pollInterval = 30000; // Poll every 30 seconds
-        
+
         // Old connection variables - kept for reference but not used with new socket approach
         this.client = null;
         this.pollTimer = null;
@@ -35,10 +35,10 @@ class BlustreamAcm200 extends utils.Adapter {
         this.transmitterStates = {};
         this.connectionInProgress = false;
         this.lastCommandTime = 0;
-        
+
         // Variables for scheduled refresh
         this.scheduledRefreshTimer = null;
-        
+
         // New variables for socket-based connection
         this.socket = null;
         this.socketBuffer = '';
@@ -70,9 +70,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'button',
                 read: false,
                 write: true,
-                desc: 'Perform a full refresh of all transmitter and receiver details'
+                desc: 'Perform a full refresh of all transmitter and receiver details',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.status.lastFullRefresh', {
@@ -83,9 +83,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'date',
                 read: true,
                 write: false,
-                desc: 'Timestamp of the last full device details refresh'
+                desc: 'Timestamp of the last full device details refresh',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.status.fullRefreshRunning', {
@@ -96,9 +96,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'indicator',
                 read: true,
                 write: false,
-                desc: 'Indicates if a full refresh is currently in progress'
+                desc: 'Indicates if a full refresh is currently in progress',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.status.nextScheduledRefresh', {
@@ -109,9 +109,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'date',
                 read: true,
                 write: false,
-                desc: 'Timestamp of the next scheduled full refresh'
+                desc: 'Timestamp of the next scheduled full refresh',
             },
-            native: {}
+            native: {},
         });
 
         // Reset the connection indicator at startup
@@ -129,25 +129,25 @@ class BlustreamAcm200 extends utils.Adapter {
         await this.setObjectNotExistsAsync('system', {
             type: 'device',
             common: {
-                name: 'Blustream ACM200 System'
+                name: 'Blustream ACM200 System',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.status', {
             type: 'channel',
             common: {
-                name: 'System Status'
+                name: 'System Status',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.commands', {
             type: 'channel',
             common: {
-                name: 'System Commands'
+                name: 'System Commands',
             },
-            native: {}
+            native: {},
         });
 
         // Create system states using setObjectNotExists
@@ -158,9 +158,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 type: 'boolean',
                 role: 'indicator.connection',
                 read: true,
-                write: false
+                write: false,
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.status.lastUpdate', {
@@ -170,9 +170,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 type: 'string',
                 role: 'date',
                 read: true,
-                write: false
+                write: false,
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.commands.refresh', {
@@ -182,9 +182,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 type: 'boolean',
                 role: 'button',
                 read: false,
-                write: true
+                write: true,
             },
-            native: {}
+            native: {},
         });
 
         // Route-to-all-displays commands — write a transmitter ID to trigger
@@ -196,9 +196,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
-                desc: 'Write a transmitter ID to route audio+video to all displays'
+                desc: 'Write a transmitter ID to route audio+video to all displays',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.commands.routeAllVideo', {
@@ -209,9 +209,9 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
-                desc: 'Write a transmitter ID to route video only to all displays'
+                desc: 'Write a transmitter ID to route video only to all displays',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('system.commands.routeAllAudio', {
@@ -222,26 +222,26 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
-                desc: 'Write a transmitter ID to route audio only to all displays'
+                desc: 'Write a transmitter ID to route audio only to all displays',
             },
-            native: {}
+            native: {},
         });
 
         // Initialize folders for transmitters and receivers
         await this.setObjectNotExistsAsync('transmitters', {
             type: 'device',
             common: {
-                name: 'Video Sources (Transmitters)'
+                name: 'Video Sources (Transmitters)',
             },
-            native: {}
+            native: {},
         });
 
         await this.setObjectNotExistsAsync('receivers', {
             type: 'device',
             common: {
-                name: 'Displays (Receivers)'
+                name: 'Displays (Receivers)',
             },
-            native: {}
+            native: {},
         });
 
         // Subscribe to states
@@ -257,13 +257,14 @@ class BlustreamAcm200 extends utils.Adapter {
 
         // Start connection to ACM200 - Use new socket-based connection
         this.connectToACM();
-        
+
         // Setup scheduled refresh
         this.setupScheduledRefresh();
     }
 
     /**
      * Handle state changes
+     *
      * @param {string} id - State ID
      * @param {object} state - State object
      */
@@ -275,27 +276,26 @@ class BlustreamAcm200 extends utils.Adapter {
                 this.refreshDeviceStatus();
                 return;
             }
-            
+
             if (id === `${this.namespace}.system.commands.refreshAll`) {
                 this.log.info('Manual full refresh triggered');
-                
+
                 // Check if refresh is already running
-                this.getStateAsync('system.status.fullRefreshRunning')
-                    .then(runningState => {
-                        if (runningState && runningState.val === true) {
-                            this.log.warn('Full refresh already in progress, ignoring request');
-                            return;
-                        }
-                        
-                        // Perform full refresh
-                        this.refreshAllDeviceDetails()
-                            .then(() => {
-                                this.log.info('Manual full refresh completed successfully');
-                            })
-                            .catch(err => {
-                                this.log.error(`Error during manual full refresh: ${err.message}`);
-                            });
-                    });
+                this.getStateAsync('system.status.fullRefreshRunning').then(runningState => {
+                    if (runningState && runningState.val === true) {
+                        this.log.warn('Full refresh already in progress, ignoring request');
+                        return;
+                    }
+
+                    // Perform full refresh
+                    this.refreshAllDeviceDetails()
+                        .then(() => {
+                            this.log.info('Manual full refresh completed successfully');
+                        })
+                        .catch(err => {
+                            this.log.error(`Error during manual full refresh: ${err.message}`);
+                        });
+                });
                 return;
             }
 
@@ -356,6 +356,8 @@ class BlustreamAcm200 extends utils.Adapter {
 
     /**
      * Clean up on adapter unload
+     *
+     * @param callback
      */
     onUnload(callback) {
         try {
@@ -415,56 +417,58 @@ class BlustreamAcm200 extends utils.Adapter {
             this.log.info('Connection already in progress, skipping');
             return;
         }
-        
+
         this.connectionInProgress = true;
         this.log.info(`Connecting to ACM200 at ${this.host}:${this.port}`);
         this.log.info(`Using socket timeout: ${this.timeout}ms`);
-        
+
         // Clear any existing connection and timers
         this.cleanup(false);
-        
+
         try {
             // Create socket connection
             this.socket = new net.Socket();
-            
+
             // Configure socket with better keepalive settings
             this.socket.setKeepAlive(true, 10000); // Change from 5000 to 10000
             this.socket.setNoDelay(true);
-            
+
             // Explicitly set timeout and log it
             this.log.debug(`Setting socket timeout to ${this.timeout}ms`);
             this.socket.setTimeout(this.timeout);
-            
+
             // Add more detailed handlers
             this.socket.on('connect', () => {
                 this.log.info('Socket connected to ACM200');
                 this.log.debug(`Socket timeout is set to ${this.timeout}ms`);
                 this.handleConnect();
             });
-            
-            this.socket.on('data', (data) => {
+
+            this.socket.on('data', data => {
                 // Log data receipt for debugging
                 this.log.debug(`Received ${data.length} bytes of data`);
                 this.handleData(data);
             });
-            
-            this.socket.on('error', (err) => {
+
+            this.socket.on('error', err => {
                 this.log.error(`Socket error: ${err.message}`);
                 this.handleError(err);
             });
-            
+
             this.socket.on('timeout', () => {
                 // Add more context to timeout log
                 this.log.warn(`Socket timeout after ${this.timeout}ms - no activity detected`);
-                this.log.info(`If the timeout persists, try using a Telnet client to test basic connectivity to ${this.host}:${this.port}`);
+                this.log.info(
+                    `If the timeout persists, try using a Telnet client to test basic connectivity to ${this.host}:${this.port}`,
+                );
                 this.handleTimeout();
             });
-            
-            this.socket.on('close', (hadError) => {
+
+            this.socket.on('close', hadError => {
                 this.log.info(`Socket closed${hadError ? ' due to error' : ''}`);
                 this.handleClose(hadError);
             });
-            
+
             // Connect to the device
             this.socket.connect(this.port, this.host);
         } catch (err) {
@@ -479,12 +483,12 @@ class BlustreamAcm200 extends utils.Adapter {
      */
     handleConnect() {
         this.log.info('Socket connected to ACM200');
-        
+
         // Wait longer before sending test command
         setTimeout(() => {
             this.log.debug('Sending test command after connection');
             this.log.debug(`Test command is: STATUS with timeout ${this.timeout}ms`);
-            
+
             // Send a test command to verify connection
             this.executeCommand('STATUS', this.timeout)
                 .then(() => {
@@ -501,11 +505,12 @@ class BlustreamAcm200 extends utils.Adapter {
 
                     // Start heartbeat with more appropriate timing
                     this.startHeartbeat();
-                    
+
                     // Get full device details (including names) on startup
-                    this.refreshAllDeviceDetails()
-                        .catch(err => this.log.warn(`Initial full refresh failed: ${err.message}`));
-                    
+                    this.refreshAllDeviceDetails().catch(err =>
+                        this.log.warn(`Initial full refresh failed: ${err.message}`),
+                    );
+
                     // Start regular polling
                     this.startPolling();
                 })
@@ -520,6 +525,7 @@ class BlustreamAcm200 extends utils.Adapter {
 
     /**
      * Handle socket error
+     *
      * @param {Error} err - Error object
      */
     handleError(err) {
@@ -537,6 +543,7 @@ class BlustreamAcm200 extends utils.Adapter {
 
     /**
      * Handle socket close
+     *
      * @param {boolean} hadError - Whether the socket closed due to an error
      */
     handleClose(hadError) {
@@ -545,10 +552,9 @@ class BlustreamAcm200 extends utils.Adapter {
         } else {
             this.log.info('Socket closed');
         }
-        
+
         this.cleanup(true);
     }
-
 
     /**
      * Start heartbeat monitoring
@@ -557,7 +563,7 @@ class BlustreamAcm200 extends utils.Adapter {
         if (this.heartbeatTimer) {
             clearInterval(this.heartbeatTimer);
         }
-        
+
         // Use the instance heartbeat interval
         const heartbeatInterval = this.heartbeatInterval;
 
@@ -567,7 +573,7 @@ class BlustreamAcm200 extends utils.Adapter {
             if (!this.connected || !this.socket) {
                 return;
             }
-            
+
             // Skip heartbeat STATUS if the command queue is busy — the fact that
             // we're processing commands already proves the connection is alive
             if (this.commandQueue.length > 0 || this.processingCommand) {
@@ -601,7 +607,7 @@ class BlustreamAcm200 extends utils.Adapter {
         if (this.heartbeatTimeout) {
             clearTimeout(this.heartbeatTimeout);
         }
-        
+
         // Set new timeout
         this.heartbeatTimeout = setTimeout(() => {
             this.log.error('Heartbeat timeout - connection considered dead');
@@ -611,108 +617,112 @@ class BlustreamAcm200 extends utils.Adapter {
 
     /**
      * Execute a command with timeout and response handling
+     *
      * @param {string} command - Command to execute
      * @param {number} timeout - Command timeout in ms
      * @returns {Promise} - Resolves with response, rejects on error or timeout
      */
     /**
- * Execute a command with timeout and response handling
- * @param {string} command - Command to execute
- * @param {number} timeout - Command timeout in ms
- * @returns {Promise} - Resolves with response, rejects on error or timeout
- */
-executeCommand(command, timeout = 10000) {
-    return new Promise((resolve, reject) => {
-        if (!this.socket || this.socket.destroyed) {
-            return reject(new Error('Socket not connected'));
-        }
-        
-        // Add to command queue
-        this.commandQueue.push({
-            command,
-            timeout,
-            resolve,
-            reject,
-            responseReceived: false,  // Track if any response was received
-            timer: setTimeout(() => {
-                // If we've received some response but not completed, don't time out
-                if (this.commandQueue.length > 0 && 
-                    this.commandQueue[0].command === command && 
-                    this.commandQueue[0].responseReceived) {
-                    
-                    this.log.info(`Command ${command} received partial response but not completed, extending timeout`);
-                    // Extend timeout by adding another timer
-                    this.commandQueue[0].timer = setTimeout(() => {
-                        this.log.warn(`Command still timed out after extension: ${command}`);
-                        // Now we really time out
-                        if (this.commandQueue.length > 0 && this.commandQueue[0].command === command) {
-                            this.commandQueue.shift();
-                            this.processingCommand = false;
-                            reject(new Error('Command timed out after extension'));
-                            
-                            // Process next command
-                            this.processNextCommand();
-                        }
-                    }, timeout * 0.5);  // Add 50% more time
-                    return;
-                }
-                
-                this.log.warn(`Command timed out: ${command}`);
-                // Remove this command from the queue
-                this.commandQueue.shift();
-                this.processingCommand = false;
-                reject(new Error('Command timed out'));
-                
-                // Process next command
-                this.processNextCommand();
-            }, timeout)
-        });
-        
-        // Process queue if not already processing
-        if (!this.processingCommand) {
-            this.processNextCommand();
-        }
-    });
-}
+     * Execute a command with timeout and response handling
+     *
+     * @param {string} command - Command to execute
+     * @param {number} timeout - Command timeout in ms
+     * @returns {Promise} - Resolves with response, rejects on error or timeout
+     */
+    executeCommand(command, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+            if (!this.socket || this.socket.destroyed) {
+                return reject(new Error('Socket not connected'));
+            }
 
-/**
- * Handle data received from socket
- * @param {Buffer} data - Raw data received
- */
-handleData(data) {
-    // Convert buffer to string and add to existing buffer
-    const newData = data.toString();
-    this.socketBuffer += newData;
-    
-    // Log data receipt for debugging (limit output size)
-    if (newData.length > 0) {
-        const preview = newData.length > 100 ? 
-            newData.substring(0, 100) + '...' : 
-            newData;
-        this.log.debug(`Received data (${newData.length} bytes): ${preview.replace(/\r\n/g, '\\r\\n')}`);
-        
-        // Mark current command as having received some response
-        if (this.processingCommand && this.commandQueue.length > 0) {
-            this.commandQueue[0].responseReceived = true;
-        }
+            // Add to command queue
+            this.commandQueue.push({
+                command,
+                timeout,
+                resolve,
+                reject,
+                responseReceived: false, // Track if any response was received
+                timer: setTimeout(() => {
+                    // If we've received some response but not completed, don't time out
+                    if (
+                        this.commandQueue.length > 0 &&
+                        this.commandQueue[0].command === command &&
+                        this.commandQueue[0].responseReceived
+                    ) {
+                        this.log.info(
+                            `Command ${command} received partial response but not completed, extending timeout`,
+                        );
+                        // Extend timeout by adding another timer
+                        this.commandQueue[0].timer = setTimeout(() => {
+                            this.log.warn(`Command still timed out after extension: ${command}`);
+                            // Now we really time out
+                            if (this.commandQueue.length > 0 && this.commandQueue[0].command === command) {
+                                this.commandQueue.shift();
+                                this.processingCommand = false;
+                                reject(new Error('Command timed out after extension'));
+
+                                // Process next command
+                                this.processNextCommand();
+                            }
+                        }, timeout * 0.5); // Add 50% more time
+                        return;
+                    }
+
+                    this.log.warn(`Command timed out: ${command}`);
+                    // Remove this command from the queue
+                    this.commandQueue.shift();
+                    this.processingCommand = false;
+                    reject(new Error('Command timed out'));
+
+                    // Process next command
+                    this.processNextCommand();
+                }, timeout),
+            });
+
+            // Process queue if not already processing
+            if (!this.processingCommand) {
+                this.processNextCommand();
+            }
+        });
     }
-    
-    // Process buffer for complete lines
-    let endIndex;
-    while ((endIndex = this.socketBuffer.indexOf('\n')) !== -1) {
-        const line = this.socketBuffer.substring(0, endIndex).trim();
-        this.socketBuffer = this.socketBuffer.substring(endIndex + 1);
-        
-        if (line.length > 0) {
-            // Process the received line
-            this.log.debug(`Processing line: ${line}`);
-            this.processResponse(line);
+
+    /**
+     * Handle data received from socket
+     *
+     * @param {Buffer} data - Raw data received
+     */
+    handleData(data) {
+        // Convert buffer to string and add to existing buffer
+        const newData = data.toString();
+        this.socketBuffer += newData;
+
+        // Log data receipt for debugging (limit output size)
+        if (newData.length > 0) {
+            const preview = newData.length > 100 ? `${newData.substring(0, 100)}...` : newData;
+            this.log.debug(`Received data (${newData.length} bytes): ${preview.replace(/\r\n/g, '\\r\\n')}`);
+
+            // Mark current command as having received some response
+            if (this.processingCommand && this.commandQueue.length > 0) {
+                this.commandQueue[0].responseReceived = true;
+            }
         }
+
+        // Process buffer for complete lines
+        let endIndex;
+        while ((endIndex = this.socketBuffer.indexOf('\n')) !== -1) {
+            const line = this.socketBuffer.substring(0, endIndex).trim();
+            this.socketBuffer = this.socketBuffer.substring(endIndex + 1);
+
+            if (line.length > 0) {
+                // Process the received line
+                this.log.debug(`Processing line: ${line}`);
+                this.processResponse(line);
+            }
+        }
+
+        // Any data receipt means the connection is alive
+        this.resetHeartbeatTimeout();
     }
-    
-    // Any data receipt means the connection is alive
-    this.resetHeartbeatTimeout();
-}
 
     /**
      * Process the next command in the queue
@@ -721,16 +731,16 @@ handleData(data) {
         if (this.processingCommand || this.commandQueue.length === 0) {
             return;
         }
-        
+
         this.processingCommand = true;
         const cmd = this.commandQueue[0];
-        
+
         this.log.debug(`Executing command: ${cmd.command}`);
-        
+
         try {
             // Send command with proper line termination
-            const commandToSend = cmd.command.endsWith('\r\n') ? cmd.command : cmd.command + '\r\n';
-            this.socket.write(commandToSend, 'utf8', (err) => {
+            const commandToSend = cmd.command.endsWith('\r\n') ? cmd.command : `${cmd.command}\r\n`;
+            this.socket.write(commandToSend, 'utf8', err => {
                 if (err) {
                     // Handle write error
                     clearTimeout(cmd.timer);
@@ -739,7 +749,7 @@ handleData(data) {
                     this.processingCommand = false;
                     this.processNextCommand();
                 }
-                
+
                 // The command has been sent, wait for response
                 // Response handling and command completion is done in processResponse
             });
@@ -755,25 +765,27 @@ handleData(data) {
 
     /**
      * Process response and complete current command if appropriate
+     *
      * @param {string} line - Response line
      */
 
-    
     processResponse(line) {
         // Log the line for debugging
         this.log.debug(`Processing response line: ${line.substring(0, 50)}...`);
-        
+
         // Check if we're collecting transmitter info
         if (this.collectingTxInfo) {
             // Add to buffer
-            this.txInfoBuffer += line + '\n';
-            
+            this.txInfoBuffer += `${line}\n`;
+
             // Check for end of transmitter info response - the exact pattern
-            if (line.includes('===========') || line.includes('=================') || 
-                line.includes('================================================================')) {
-                
+            if (
+                line.includes('===========') ||
+                line.includes('=================') ||
+                line.includes('================================================================')
+            ) {
                 this.log.debug(`End of transmitter info detected, buffer size: ${this.txInfoBuffer.length} bytes`);
-                
+
                 // Make sure the buffer contains transmitter info
                 if (this.txInfoBuffer.includes('IP Control Box ACM200 Input Info')) {
                     // Process the complete transmitter info
@@ -786,25 +798,27 @@ handleData(data) {
                 } else {
                     this.log.warn('Received end marker but buffer does not contain transmitter info');
                 }
-                
+
                 // Reset collection
                 this.collectingTxInfo = false;
                 this.txInfoBuffer = '';
             }
             return;
         }
-        
+
         // Check if we're collecting receiver info
         if (this.collectingRxInfo) {
             // Add to buffer
-            this.rxInfoBuffer += line + '\n';
-            
+            this.rxInfoBuffer += `${line}\n`;
+
             // Check for end of receiver info response
-            if (line.includes('===========') || line.includes('=================') || 
-                line.includes('================================================================')) {
-                
+            if (
+                line.includes('===========') ||
+                line.includes('=================') ||
+                line.includes('================================================================')
+            ) {
                 this.log.debug(`End of receiver info detected, buffer size: ${this.rxInfoBuffer.length} bytes`);
-                
+
                 // Make sure the buffer contains receiver info
                 if (this.rxInfoBuffer.includes('IP Control Box ACM200 Output Info')) {
                     // Process the complete receiver info
@@ -817,30 +831,30 @@ handleData(data) {
                 } else {
                     this.log.warn('Received end marker but buffer does not contain receiver info');
                 }
-                
+
                 // Reset collection
                 this.collectingRxInfo = false;
                 this.rxInfoBuffer = '';
             }
             return;
         }
-        
+
         // Check if this is the start of a transmitter info response
         if (line.includes('IP Control Box ACM200 Input Info')) {
             this.log.debug('Starting to collect transmitter info');
             this.collectingTxInfo = true;
-            this.txInfoBuffer = line + '\n';
+            this.txInfoBuffer = `${line}\n`;
             return;
         }
-        
+
         // Check if this is the start of a receiver info response
         if (line.includes('IP Control Box ACM200 Output Info')) {
             this.log.debug('Starting to collect receiver info');
             this.collectingRxInfo = true;
-            this.rxInfoBuffer = line + '\n';
+            this.rxInfoBuffer = `${line}\n`;
             return;
         }
-        
+
         // First, handle the response for command processing
         if (this.processingCommand && this.commandQueue.length > 0) {
             const currentCmd = this.commandQueue[0];
@@ -850,14 +864,18 @@ handleData(data) {
             let commandComplete = false;
 
             // STATUS-type responses end with separator lines
-            if (line.includes('=================') ||
+            if (
+                line.includes('=================') ||
                 line.includes('================================================================') ||
-                line.includes('ACM200 Status Info')) {
+                line.includes('ACM200 Status Info')
+            ) {
                 commandComplete = true;
-            }
-            // ACM200 action responses: "[SUCCESS]..." or "[ERROR]..."
-            else if (line.includes('[SUCCESS]') || line.includes('[ERROR]') ||
-                     line.includes('Command not found')) {
+            } else if (
+                // ACM200 action responses: "[SUCCESS]..." or "[ERROR]..."
+                line.includes('[SUCCESS]') ||
+                line.includes('[ERROR]') ||
+                line.includes('Command not found')
+            ) {
                 commandComplete = true;
             }
 
@@ -872,21 +890,22 @@ handleData(data) {
                 setTimeout(() => this.processNextCommand(), 100);
             }
         }
-        
+
         // Now process the line for status data extraction
         if (line.includes('IP Control Box ACM200 Status Info')) {
             // Begin collecting status info
-            this.statusBuffer = line + '\n';
+            this.statusBuffer = `${line}\n`;
             this.collectingStatus = true;
             this.log.debug('Starting to collect status information');
         } else if (this.collectingStatus) {
             // Append to status buffer
-            this.statusBuffer += line + '\n';
-            
+            this.statusBuffer += `${line}\n`;
+
             // Check if we've reached the end of status
-            if (line.includes('=================') || 
-                line.includes('================================================================')) {
-                
+            if (
+                line.includes('=================') ||
+                line.includes('================================================================')
+            ) {
                 // Process the complete status response
                 this.log.debug('Status collection complete, processing status info');
                 this.processStatusInfo(this.statusBuffer);
@@ -898,36 +917,37 @@ handleData(data) {
 
     /**
      * Clean up resources and optionally schedule reconnect
+     *
      * @param {boolean} reconnect - Whether to schedule a reconnection attempt
      */
     cleanup(reconnect = true) {
         this.connected = false;
         this.processingCommand = false;
         this.setState('info.connection', false, true);
-        
+
         // Clear all timers
         if (this.heartbeatTimer) {
             clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = null;
         }
-        
+
         if (this.heartbeatTimeout) {
             clearTimeout(this.heartbeatTimeout);
             this.heartbeatTimeout = null;
         }
-        
+
         if (this.pollTimer) {
             clearTimeout(this.pollTimer);
             this.pollTimer = null;
         }
-        
+
         // Clear command queue and reject any pending commands
         this.commandQueue.forEach(cmd => {
             clearTimeout(cmd.timer);
             cmd.reject(new Error('Connection closed'));
         });
         this.commandQueue = [];
-        
+
         // Close socket
         if (this.socket) {
             try {
@@ -937,11 +957,11 @@ handleData(data) {
             }
             this.socket = null;
         }
-        
+
         // Schedule reconnection if needed
         if (reconnect && !this.reconnectTimer) {
-            this.log.info(`Will attempt to reconnect in ${this.reconnectDelay/1000} seconds`);
-            
+            this.log.info(`Will attempt to reconnect in ${this.reconnectDelay / 1000} seconds`);
+
             this.reconnectTimer = setTimeout(() => {
                 this.reconnectTimer = null;
                 this.connectToACM();
@@ -956,13 +976,13 @@ handleData(data) {
         if (this.pollTimer) {
             clearTimeout(this.pollTimer);
         }
-    
+
         this.pollTimer = setTimeout(() => {
             // Check if a full refresh is already running before polling
             this.getStateAsync('system.status.fullRefreshRunning')
                 .then(state => {
                     const refreshRunning = state && state.val === true;
-                    
+
                     if (this.connected && !refreshRunning) {
                         // Only refresh status if not already doing a full refresh
                         this.log.debug('Executing regular status poll');
@@ -970,18 +990,18 @@ handleData(data) {
                     } else if (refreshRunning) {
                         this.log.debug('Skipping regular status poll because full refresh is running');
                     }
-                    
+
                     // Restart polling regardless
                     this.startPolling();
                 })
                 .catch(err => {
                     this.log.warn(`Error checking refresh status: ${err.message}`);
-                    
+
                     // Default to regular polling on error
                     if (this.connected) {
                         this.refreshDeviceStatus();
                     }
-                    
+
                     this.startPolling();
                 });
         }, Number(this.pollInterval));
@@ -991,7 +1011,9 @@ handleData(data) {
      * Refresh the device status
      */
     refreshDeviceStatus() {
-        if (!this.connected) return;
+        if (!this.connected) {
+            return;
+        }
 
         // Don't queue a STATUS poll if there are already commands waiting —
         // sending STATUS while the ACM200 is still processing an action command
@@ -1012,10 +1034,9 @@ handleData(data) {
                 }
 
                 // Get system status
-                this.executeCommand('STATUS')
-                    .catch(err => {
-                        this.log.error(`Error getting STATUS: ${err.message}`);
-                    });
+                this.executeCommand('STATUS').catch(err => {
+                    this.log.error(`Error getting STATUS: ${err.message}`);
+                });
 
                 // Update timestamp
                 this.setState('system.status.lastUpdate', new Date().toISOString(), true);
@@ -1024,10 +1045,9 @@ handleData(data) {
                 this.log.warn(`Error checking refresh status: ${err.message}`);
 
                 // Default behavior on error - try to get status
-                this.executeCommand('STATUS')
-                    .catch(err => {
-                        this.log.error(`Error getting STATUS: ${err.message}`);
-                    });
+                this.executeCommand('STATUS').catch(err => {
+                    this.log.error(`Error getting STATUS: ${err.message}`);
+                });
 
                 this.setState('system.status.lastUpdate', new Date().toISOString(), true);
             });
@@ -1042,31 +1062,33 @@ handleData(data) {
             clearTimeout(this.scheduledRefreshTimer);
             this.scheduledRefreshTimer = null;
         }
-        
+
         // Calculate time until next 3am
         const now = new Date();
         const nextRefresh = new Date(now);
-        
+
         // Set to next 3am
         nextRefresh.setHours(3, 0, 0, 0);
-        
+
         // If it's already past 3am, set for next day
         if (now >= nextRefresh) {
             nextRefresh.setDate(nextRefresh.getDate() + 1);
         }
-        
+
         // Calculate milliseconds until next refresh
         const msUntilRefresh = nextRefresh.getTime() - now.getTime();
-        
-        this.log.info(`Scheduled device information refresh set for ${nextRefresh.toLocaleString()} (in ${Math.round(msUntilRefresh/1000/60)} minutes)`);
-        
+
+        this.log.info(
+            `Scheduled device information refresh set for ${nextRefresh.toLocaleString()} (in ${Math.round(msUntilRefresh / 1000 / 60)} minutes)`,
+        );
+
         // Update next refresh time state
         this.setState('system.status.nextScheduledRefresh', nextRefresh.toISOString(), true);
-        
+
         // Schedule the refresh
         this.scheduledRefreshTimer = setTimeout(() => {
             this.log.info('Running scheduled device information refresh');
-            
+
             this.refreshAllDeviceDetails()
                 .then(() => {
                     this.log.info('Scheduled refresh completed successfully');
@@ -1083,6 +1105,7 @@ handleData(data) {
 
     /**
      * Refresh all device details (full refresh)
+     *
      * @returns {Promise} - Promise that resolves when all refreshes are complete
      */
     refreshAllDeviceDetails() {
@@ -1091,9 +1114,9 @@ handleData(data) {
                 this.log.warn('Cannot refresh device details, not connected');
                 return reject(new Error('Not connected'));
             }
-            
+
             this.setState('system.status.fullRefreshRunning', true, true);
-            
+
             // First get the system status to discover all devices
             this.executeCommand('STATUS')
                 .then(() => {
@@ -1123,19 +1146,20 @@ handleData(data) {
 
     /**
      * Fetch detailed information for all transmitters and receivers
+     *
      * @returns {Promise} - Promise that resolves when all fetches are complete
      */
     fetchDetailedInformation() {
         if (!this.connected) {
             return Promise.reject(new Error('Not connected'));
         }
-        
+
         this.log.info('Fetching detailed information for all devices');
-        
+
         return new Promise((resolve, reject) => {
             const fetchPromises = [];
             const queueDelay = 500; // 500ms between commands to avoid flooding the device
-            
+
             // Queue transmitter detail fetches with delay
             Object.keys(this.transmitterStates).forEach((txId, index) => {
                 fetchPromises.push(
@@ -1145,24 +1169,27 @@ handleData(data) {
                                 .catch(err => this.log.warn(`Error fetching TX ${txId} details: ${err.message}`))
                                 .finally(() => resolve());
                         }, index * queueDelay);
-                    })
+                    }),
                 );
             });
-            
+
             // Queue receiver detail fetches with delay (after transmitters)
             const rxStartDelay = Object.keys(this.transmitterStates).length * queueDelay;
             Object.keys(this.receiverStates).forEach((rxId, index) => {
                 fetchPromises.push(
                     new Promise(resolve => {
-                        setTimeout(() => {
-                            this.fetchReceiverDetails(rxId)
-                                .catch(err => this.log.warn(`Error fetching RX ${rxId} details: ${err.message}`))
-                                .finally(() => resolve());
-                        }, rxStartDelay + (index * queueDelay));
-                    })
+                        setTimeout(
+                            () => {
+                                this.fetchReceiverDetails(rxId)
+                                    .catch(err => this.log.warn(`Error fetching RX ${rxId} details: ${err.message}`))
+                                    .finally(() => resolve());
+                            },
+                            rxStartDelay + index * queueDelay,
+                        );
+                    }),
                 );
             });
-            
+
             // When all fetches are complete
             Promise.all(fetchPromises)
                 .then(() => {
@@ -1175,9 +1202,10 @@ handleData(data) {
                 });
         });
     }
-    
+
     /**
      * Fetch detailed information for a specific transmitter
+     *
      * @param {string} id - Transmitter ID (e.g., "001")
      * @returns {Promise} - Promise that resolves when the command is sent
      */
@@ -1186,17 +1214,18 @@ handleData(data) {
             this.log.warn(`Cannot fetch transmitter details, not connected`);
             return Promise.reject(new Error('Not connected'));
         }
-    
+
         // Format the command: IN xxx STATUS
         const command = `IN${id.padStart(3, '0')} STATUS`;
-        
+
         this.log.debug(`Fetching details for transmitter ${id} with command: ${command}`);
-        
+
         return this.executeCommand(command);
     }
 
     /**
      * Fetch detailed information for a specific receiver
+     *
      * @param {string} id - Receiver ID (e.g., "001")
      * @returns {Promise} - Promise that resolves when the command is sent
      */
@@ -1208,14 +1237,15 @@ handleData(data) {
 
         // Format the command: OUT xxx STATUS
         const command = `OUT${id.padStart(3, '0')} STATUS`;
-        
+
         this.log.debug(`Fetching details for receiver ${id} with command: ${command}`);
-        
+
         return this.executeCommand(command);
     }
 
     /**
      * Route video from a transmitter to a receiver
+     *
      * @param {string} txId - Transmitter ID
      * @param {string} rxId - Receiver ID
      */
@@ -1233,7 +1263,7 @@ handleData(data) {
         this.executeCommand(command)
             .then(() => {
                 this.log.info(`Successfully routed TX ${txId} (audio+video) to RX ${rxId}`);
-                
+
                 // Update the state so it shows correctly in the UI
                 this.setState(`receivers.${rxId}.route`, txId, true);
                 // Combined route sets both audio and video to the same source
@@ -1264,6 +1294,7 @@ handleData(data) {
 
     /**
      * Route video only from a transmitter to a receiver (audio breakaway)
+     *
      * @param {string} txId - Transmitter ID
      * @param {string} rxId - Receiver ID
      */
@@ -1300,6 +1331,7 @@ handleData(data) {
 
     /**
      * Route audio only from a transmitter to a receiver (audio breakaway)
+     *
      * @param {string} txId - Transmitter ID
      * @param {string} rxId - Receiver ID
      */
@@ -1327,6 +1359,7 @@ handleData(data) {
 
     /**
      * Set audio source for a transmitter
+     *
      * @param {string} txId - Transmitter ID
      * @param {string} source - Audio source: HDMI or ANA
      */
@@ -1362,6 +1395,7 @@ handleData(data) {
 
     /**
      * Process system status information
+     *
      * @param {string} data - Status data
      */
     processStatusInfo(data) {
@@ -1378,9 +1412,9 @@ handleData(data) {
                     type: 'string',
                     role: 'text',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             }).then(() => {
                 this.setState('system.status.firmwareVersion', fwMatch[1], true);
             });
@@ -1459,45 +1493,50 @@ handleData(data) {
 
     parseTransmitters(data) {
         const lines = data.split('\n');
-        
+
         // Look for the line containing transmitter headers, with flexible spacing
         const startIdx = lines.findIndex(line => {
             // Match with flexible spacing between words
             return line.match(/In\s+Net\s+Sig/i) || line.match(/In\s+EDID\s+IP/i);
         });
-        
+
         if (startIdx === -1) {
             this.log.warn('Status response is missing transmitter header');
             return;
         }
-        
+
         // Log the header for debugging
         this.log.debug(`Found transmitter header: ${lines[startIdx]}`);
-        
+
         let i = startIdx + 1;
         let parsedCount = 0;
-        
+
         while (i < lines.length) {
             const line = lines[i].trim();
-            
+
             // Stop if we reach the output section or end of data
-            if (line.startsWith('Out') || line.startsWith('LAN') || line === '' || 
-                line.includes('=======') || line.includes('Output')) {
+            if (
+                line.startsWith('Out') ||
+                line.startsWith('LAN') ||
+                line === '' ||
+                line.includes('=======') ||
+                line.includes('Output')
+            ) {
                 break;
             }
-            
+
             // The first field must be a number (transmitter ID)
             if (/^\d+\s/.test(line)) {
                 // Split by multiple spaces
                 const parts = line.split(/\s+/);
-                
+
                 // Only process if we have at least the basic parts (ID, plus status fields)
                 if (parts.length >= 3) {
                     const id = parts[0].padStart(3, '0');
-                    
+
                     // Extract fields based on the header format
                     // Assuming format: "In Net Sig Ver EDID MCast Name" from your example
-                    
+
                     let status = false;
                     let edid = '';
                     let ip = '';
@@ -1566,50 +1605,53 @@ handleData(data) {
                     this.createTransmitter(id, ip, edid, status, name, model, audioSource);
                     parsedCount++;
 
-                    this.log.debug(`Parsed transmitter ${id}: status=${status}, edid=${edid}, ip=${ip}, model=${model}, name=${name}, audioSource=${audioSource}`);
+                    this.log.debug(
+                        `Parsed transmitter ${id}: status=${status}, edid=${edid}, ip=${ip}, model=${model}, name=${name}, audioSource=${audioSource}`,
+                    );
                 }
             }
-            
+
             i++;
         }
-        
+
         this.log.debug(`Parsed ${parsedCount} transmitters from status response`);
     }
 
     /**
      * Parse receiver information from status response
+     *
      * @param {string} data - Status data
      */
     parseReceivers(data) {
         const lines = data.split('\n');
-        
+
         // Look for the line containing receiver headers, with flexible spacing
         const startIdx = lines.findIndex(line => {
             // Match with flexible spacing between words
             return line.match(/Out\s+FromIn\s+IP\s+NET\/HDMI/i);
         });
-        
+
         if (startIdx === -1) {
             this.log.warn('Status response is missing receiver header');
             return;
         }
-        
+
         let i = startIdx + 1;
         let parsedCount = 0;
-        
+
         while (i < lines.length) {
             const line = lines[i].trim();
-            
+
             // Stop if we reach the LAN section or end of data
             if (line.startsWith('LAN') || line === '') {
                 break;
             }
-            
+
             // The first field must be a number (receiver ID)
             if (/^\d+\s/.test(line)) {
                 // Split by multiple spaces
                 const parts = line.split(/\s+/);
-                
+
                 // Only process if we have at least the basic parts
                 if (parts.length >= 5) {
                     const id = parts[0].padStart(3, '0');
@@ -1645,26 +1687,30 @@ handleData(data) {
                     parsedCount++;
                 }
             }
-            
+
             i++;
         }
-        
+
         this.log.debug(`Parsed ${parsedCount} receivers from status response`);
     }
 
     /**
      * Process transmitter information
+     *
      * @param {string} data - Transmitter data
      */
     processTransmitterInfo(data) {
         this.log.info(`Processing transmitter info data, length: ${data.length} bytes`);
-        
+
         // Split into lines for easier processing
-        const lines = data.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-        
+        const lines = data
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+
         // Find the line with the transmitter ID and data
         let dataLine = '';
-        
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             // Look for a line that starts with digits
@@ -1673,39 +1719,38 @@ handleData(data) {
                 break;
             }
         }
-        
+
         if (!dataLine) {
             this.log.warn('Could not find transmitter data line');
             return;
         }
-        
+
         this.log.info(`Found data line: "${dataLine}"`);
-        
+
         // Simple, direct approach - split by whitespace and count fields
         const parts = dataLine.split(/\s+/);
-        
+
         // We know the format is:
         // [0]    [1]     [2]    [3]     [4]    [5]      [6+]
         // 001    On      On     A7.4.1  DF003  On       Screen Cloud A
-        
+
         if (parts.length < 7) {
             this.log.warn(`Data line has too few parts: ${parts.length}`);
             return;
         }
-        
+
         const id = parts[0].padStart(3, '0');
         const netStatus = parts[1] === 'On';
         const sigStatus = parts[2] === 'On';
         const version = parts[3];
         const edid = parts[4];
-        const mcastStatus = parts[5] === 'On';
-        
+
         // Everything from index 6 onwards is the name
         const name = parts.slice(6).join(' ');
-        
+
         // Status is both net and sig being on
         const status = netStatus && sigStatus;
-        
+
         // Find IP address
         let ip = '';
         for (let i = 0; i < lines.length; i++) {
@@ -1717,20 +1762,19 @@ handleData(data) {
                 }
             }
         }
-        
+
         // Find MAC address
         let mac = '';
         for (let i = 0; i < lines.length; i++) {
-            const macMatch = lines[i].match(/([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})/);
+            const macMatch = lines[i].match(
+                /([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})/,
+            );
             if (macMatch) {
                 mac = macMatch[0];
                 break;
             }
         }
-        
-        // Model is usually blank
-        let model = '';
-        
+
         this.log.info(`Extracted data for TX ${id}:`);
         this.log.info(`  Name: "${name}"`);
         this.log.info(`  IP: ${ip}`);
@@ -1738,7 +1782,7 @@ handleData(data) {
         this.log.info(`  EDID: ${edid}`);
         this.log.info(`  Version: ${version}`);
         this.log.info(`  MAC: ${mac}`);
-        
+
         // Create all objects first to avoid warnings
         this.ensureTransmitterObjects(id)
             .then(() => {
@@ -1750,36 +1794,37 @@ handleData(data) {
                 this.setState(`transmitters.${id}.edid`, edid, true);
                 this.setState(`transmitters.${id}.version`, version, true);
                 this.setState(`transmitters.${id}.mac`, mac, true);
-                
+
                 // Update channel name
                 this.extendObject(`transmitters.${id}`, {
                     common: {
-                        name: name || `Transmitter ${id}`
-                    }
+                        name: name || `Transmitter ${id}`,
+                    },
                 });
             })
             .catch(err => {
                 this.log.error(`Error processing transmitter ${id}: ${err.message}`);
             });
     }
-    
+
     /**
      * Ensure all transmitter objects exist
+     *
      * @param {string} id - Transmitter ID
      * @returns {Promise} - Promise that resolves when all objects are created
      */
     async ensureTransmitterObjects(id) {
         const prefix = `transmitters.${id}`;
-        
+
         // Create main channel
         await this.setObjectNotExists(prefix, {
             type: 'channel',
             common: {
-                name: `Transmitter ${id}`
+                name: `Transmitter ${id}`,
             },
-            native: {}
+            native: {},
         });
-        
+
         // Create all states
         const states = [
             { id: 'id', name: 'Transmitter ID', type: 'string', role: 'info.name' },
@@ -1787,11 +1832,18 @@ handleData(data) {
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
             { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
             { id: 'edid', name: 'EDID Setting', type: 'string', role: 'info' },
-            { id: 'audioSource', name: 'Audio Source', type: 'string', role: 'level', write: true, states: { 'AUTO': 'Auto', 'HDMI': 'HDMI', 'ANA': 'Analogue L/R' } },
+            {
+                id: 'audioSource',
+                name: 'Audio Source',
+                type: 'string',
+                role: 'level',
+                write: true,
+                states: { AUTO: 'Auto', HDMI: 'HDMI', ANA: 'Analogue L/R' },
+            },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
             { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
             { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
-            { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' }
+            { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' },
         ];
 
         for (const state of states) {
@@ -1800,7 +1852,7 @@ handleData(data) {
                 type: state.type,
                 role: state.role,
                 read: true,
-                write: state.write || false
+                write: state.write || false,
             };
             if (state.states) {
                 common.states = state.states;
@@ -1808,275 +1860,282 @@ handleData(data) {
             await this.setObjectNotExists(`${prefix}.${state.id}`, {
                 type: 'state',
                 common,
-                native: {}
+                native: {},
             });
         }
     }
 
     /**
      * Process receiver information
+     *
      * @param {string} data - Receiver data
      */
 
     /**
- * Process receiver information
- * @param {string} data - Receiver data
- */
-processReceiverInfo(data) {
-    this.log.info(`Processing receiver info data, length: ${data.length} bytes`);
-    
-    // Verify this is a receiver info response
-    if (!data.includes('IP Control Box ACM200 Output Info')) {
-        this.log.warn('Not a valid receiver info response');
-        return;
-    }
-    
-    // Split into lines for easier processing - keep all lines
-    const lines = data.split('\n');
-    
-    // Log the first few lines for debugging
-    for (let i = 0; i < Math.min(10, lines.length); i++) {
-        this.log.debug(`Line ${i}: "${lines[i].trim()}"`);
-    }
-    
-    // Find the header line and the data line
-    let headerLine = '';
-    let dataLine = '';
-    
-    for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        
-        // Find the header line that contains "Out Net HPD Ver"
-        if (trimmed.startsWith('Out') && trimmed.includes('Net') && trimmed.includes('HPD')) {
-            headerLine = trimmed;
-            // The next line should be the data line
-            if (i + 1 < lines.length) {
-                dataLine = lines[i + 1].trim();
-                break;
+     * Process receiver information
+     *
+     * @param {string} data - Receiver data
+     */
+    processReceiverInfo(data) {
+        this.log.info(`Processing receiver info data, length: ${data.length} bytes`);
+
+        // Verify this is a receiver info response
+        if (!data.includes('IP Control Box ACM200 Output Info')) {
+            this.log.warn('Not a valid receiver info response');
+            return;
+        }
+
+        // Split into lines for easier processing - keep all lines
+        const lines = data.split('\n');
+
+        // Log the first few lines for debugging
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+            this.log.debug(`Line ${i}: "${lines[i].trim()}"`);
+        }
+
+        // Find the header line and the data line
+        let headerLine = '';
+        let dataLine = '';
+
+        for (let i = 0; i < lines.length; i++) {
+            const trimmed = lines[i].trim();
+
+            // Find the header line that contains "Out Net HPD Ver"
+            if (trimmed.startsWith('Out') && trimmed.includes('Net') && trimmed.includes('HPD')) {
+                headerLine = trimmed;
+                // The next line should be the data line
+                if (i + 1 < lines.length) {
+                    dataLine = lines[i + 1].trim();
+                    break;
+                }
             }
         }
-    }
-    
-    if (!headerLine || !dataLine) {
-        this.log.warn('Could not find header or data line');
-        this.log.warn(`Total lines: ${lines.length}`);
-        return;
-    }
-    
-    this.log.debug(`Header line: "${headerLine}"`);
-    this.log.debug(`Data line: "${dataLine}"`);
-    
-    // Split the data line by whitespace
-    const parts = dataLine.split(/\s+/);
-    
-    // We need at least the ID
-    if (parts.length < 1) {
-        this.log.warn(`Data line has too few parts: ${parts.length}`);
-        return;
-    }
-    
-    const id = parts[0].padStart(3, '0');
-    this.log.debug(`Found receiver ID: ${id}`);
-    
-    // Extract other fields if available
-    let netStatus = false;
-    let hpdStatus = false;
-    let version = '';
-    let mode = '';
-    let resolution = '';
-    let name = '';
-    
-    if (parts.length >= 2) {
-        netStatus = parts[1] === 'On';
-    }
-    
-    if (parts.length >= 3) {
-        hpdStatus = parts[2] === 'On';
-    }
-    
-    if (parts.length >= 4) {
-        version = parts[3];
-    }
-    
-    if (parts.length >= 5) {
-        mode = parts[4];
-    }
-    
-    if (parts.length >= 6) {
-        resolution = parts[5];
-    }
-    
-    // Name is everything from position 7 onwards
-    if (parts.length >= 8) {
-        name = parts.slice(7).join(' ');
-    }
-    
-    // Status is both net and hpd being on
-    const status = netStatus && hpdStatus;
-    
-    // Find the current source (transmitter ID)
-    let currentTx = '';
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.includes('Fr') && line.includes('Vid/Aud')) {
-            // The next line should contain the source
-            if (i + 1 < lines.length) {
-                const srcLine = lines[i + 1].trim();
-                const srcParts = srcLine.split(/\s+/);
-                // Find the first 3-digit number
-                for (const part of srcParts) {
-                    if (/^\d{3}$/.test(part)) {
-                        currentTx = part;
-                        this.log.debug(`Found source TX: ${currentTx}`);
-                        break;
+
+        if (!headerLine || !dataLine) {
+            this.log.warn('Could not find header or data line');
+            this.log.warn(`Total lines: ${lines.length}`);
+            return;
+        }
+
+        this.log.debug(`Header line: "${headerLine}"`);
+        this.log.debug(`Data line: "${dataLine}"`);
+
+        // Split the data line by whitespace
+        const parts = dataLine.split(/\s+/);
+
+        // We need at least the ID
+        if (parts.length < 1) {
+            this.log.warn(`Data line has too few parts: ${parts.length}`);
+            return;
+        }
+
+        const id = parts[0].padStart(3, '0');
+        this.log.debug(`Found receiver ID: ${id}`);
+
+        // Extract other fields if available
+        let netStatus = false;
+        let hpdStatus = false;
+        let version = '';
+        let mode = '';
+        let resolution = '';
+        let name = '';
+
+        if (parts.length >= 2) {
+            netStatus = parts[1] === 'On';
+        }
+
+        if (parts.length >= 3) {
+            hpdStatus = parts[2] === 'On';
+        }
+
+        if (parts.length >= 4) {
+            version = parts[3];
+        }
+
+        if (parts.length >= 5) {
+            mode = parts[4];
+        }
+
+        if (parts.length >= 6) {
+            resolution = parts[5];
+        }
+
+        // Name is everything from position 7 onwards
+        if (parts.length >= 8) {
+            name = parts.slice(7).join(' ');
+        }
+
+        // Status is both net and hpd being on
+        const status = netStatus && hpdStatus;
+
+        // Find the current source (transmitter ID)
+        let currentTx = '';
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.includes('Fr') && line.includes('Vid/Aud')) {
+                // The next line should contain the source
+                if (i + 1 < lines.length) {
+                    const srcLine = lines[i + 1].trim();
+                    const srcParts = srcLine.split(/\s+/);
+                    // Find the first 3-digit number
+                    for (const part of srcParts) {
+                        if (/^\d{3}$/.test(part)) {
+                            currentTx = part;
+                            this.log.debug(`Found source TX: ${currentTx}`);
+                            break;
+                        }
                     }
                 }
-            }
-            break;
-        }
-    }
-    
-    // Find IP address
-    let ip = '';
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.includes('.') && line.match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) {
-            const ipMatch = line.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-            if (ipMatch) {
-                ip = ipMatch[1];
-                this.log.debug(`Found IP: ${ip}`);
                 break;
             }
         }
-    }
-    
-    // Find MAC address
-    let mac = '';
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const macMatch = line.match(/([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})/);
-        if (macMatch) {
-            mac = macMatch[0];
-            this.log.debug(`Found MAC: ${mac}`);
-            break;
-        }
-    }
-    
-    // Log all extracted data
-    this.log.info(`Complete extracted data for RX ${id}:`);
-    this.log.info(`  Name: "${name}"`);
-    this.log.info(`  IP: ${ip}`);
-    this.log.info(`  Status: ${status}`);
-    this.log.info(`  Current TX: ${currentTx}`);
-    this.log.info(`  Resolution: ${resolution}`);
-    this.log.info(`  Mode: ${mode}`);
-    this.log.info(`  Version: ${version}`);
-    this.log.info(`  MAC: ${mac}`);
-    
-    // Ensure objects exist before updating states
-    this.ensureReceiverObjects(id)
-        .then(() => {
-            // Update all states
-            this.setState(`receivers.${id}.id`, id, true);
-            this.setState(`receivers.${id}.name`, name, true);
-            this.setState(`receivers.${id}.ip`, ip, true);
-            this.setState(`receivers.${id}.connected`, status, true);
-            
-            if (currentTx) {
-                this.setState(`receivers.${id}.route`, currentTx, true);
-            }
-            
-            this.setState(`receivers.${id}.resolution`, resolution, true);
-            this.setState(`receivers.${id}.mode`, mode, true);
-            this.setState(`receivers.${id}.version`, version, true);
-            this.setState(`receivers.${id}.mac`, mac, true);
-            
-            // For preview URL, we need the source transmitter's IP
-            if (currentTx && this.transmitterStates[currentTx] && this.transmitterStates[currentTx].ip) {
-                const sourceIp = this.transmitterStates[currentTx].ip;
-                const timestamp = Date.now();
-                const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
-                this.setState(`receivers.${id}.previewUrl`, previewUrl, true);
-            }
-            
-            // Update channel name
-            this.extendObject(`receivers.${id}`, {
-                common: {
-                    name: name || `Receiver ${id}`
+
+        // Find IP address
+        let ip = '';
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.includes('.') && line.match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) {
+                const ipMatch = line.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+                if (ipMatch) {
+                    ip = ipMatch[1];
+                    this.log.debug(`Found IP: ${ip}`);
+                    break;
                 }
-            });
-        })
-        .catch(err => {
-            this.log.error(`Error processing receiver ${id}: ${err.message}`);
-        });
-}
-
-/**
- * Ensure all receiver objects exist
- * @param {string} id - Receiver ID
- * @returns {Promise} - Promise that resolves when all objects are created
- */
-async ensureReceiverObjects(id) {
-    const prefix = `receivers.${id}`;
-    
-    // Create main channel
-    await this.setObjectNotExists(prefix, {
-        type: 'channel',
-        common: {
-            name: `Receiver ${id}`
-        },
-        native: {}
-    });
-    
-    // Create all states
-    const states = [
-        { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
-        { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name', write: true },
-        { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-        { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
-        { id: 'route', name: 'Current Source', type: 'string', role: 'level', write: true },
-        { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'level', write: true },
-        { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'level', write: true },
-        { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'info' },
-        { id: 'mode', name: 'Operation Mode', type: 'string', role: 'info' },
-        { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
-        { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
-        { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
-        { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' }
-    ];
-
-    for (const state of states) {
-        const common = {
-            name: state.name,
-            type: state.type,
-            role: state.role,
-            read: true,
-            write: state.write || false
-        };
-        if (state.states) {
-            common.states = state.states;
+            }
         }
-        await this.setObjectNotExists(`${prefix}.${state.id}`, {
-            type: 'state',
-            common,
-            native: {}
-        });
+
+        // Find MAC address
+        let mac = '';
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const macMatch = line.match(
+                /([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})/,
+            );
+            if (macMatch) {
+                mac = macMatch[0];
+                this.log.debug(`Found MAC: ${mac}`);
+                break;
+            }
+        }
+
+        // Log all extracted data
+        this.log.info(`Complete extracted data for RX ${id}:`);
+        this.log.info(`  Name: "${name}"`);
+        this.log.info(`  IP: ${ip}`);
+        this.log.info(`  Status: ${status}`);
+        this.log.info(`  Current TX: ${currentTx}`);
+        this.log.info(`  Resolution: ${resolution}`);
+        this.log.info(`  Mode: ${mode}`);
+        this.log.info(`  Version: ${version}`);
+        this.log.info(`  MAC: ${mac}`);
+
+        // Ensure objects exist before updating states
+        this.ensureReceiverObjects(id)
+            .then(() => {
+                // Update all states
+                this.setState(`receivers.${id}.id`, id, true);
+                this.setState(`receivers.${id}.name`, name, true);
+                this.setState(`receivers.${id}.ip`, ip, true);
+                this.setState(`receivers.${id}.connected`, status, true);
+
+                if (currentTx) {
+                    this.setState(`receivers.${id}.route`, currentTx, true);
+                }
+
+                this.setState(`receivers.${id}.resolution`, resolution, true);
+                this.setState(`receivers.${id}.mode`, mode, true);
+                this.setState(`receivers.${id}.version`, version, true);
+                this.setState(`receivers.${id}.mac`, mac, true);
+
+                // For preview URL, we need the source transmitter's IP
+                if (currentTx && this.transmitterStates[currentTx] && this.transmitterStates[currentTx].ip) {
+                    const sourceIp = this.transmitterStates[currentTx].ip;
+                    const timestamp = Date.now();
+                    const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
+                    this.setState(`receivers.${id}.previewUrl`, previewUrl, true);
+                }
+
+                // Update channel name
+                this.extendObject(`receivers.${id}`, {
+                    common: {
+                        name: name || `Receiver ${id}`,
+                    },
+                });
+            })
+            .catch(err => {
+                this.log.error(`Error processing receiver ${id}: ${err.message}`);
+            });
     }
-}
+
+    /**
+     * Ensure all receiver objects exist
+     *
+     * @param {string} id - Receiver ID
+     * @returns {Promise} - Promise that resolves when all objects are created
+     */
+    async ensureReceiverObjects(id) {
+        const prefix = `receivers.${id}`;
+
+        // Create main channel
+        await this.setObjectNotExists(prefix, {
+            type: 'channel',
+            common: {
+                name: `Receiver ${id}`,
+            },
+            native: {},
+        });
+
+        // Create all states
+        const states = [
+            { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
+            { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name', write: true },
+            { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
+            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
+            { id: 'route', name: 'Current Source', type: 'string', role: 'level', write: true },
+            { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'level', write: true },
+            { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'level', write: true },
+            { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'info' },
+            { id: 'mode', name: 'Operation Mode', type: 'string', role: 'info' },
+            { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
+            { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
+            { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
+            { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' },
+        ];
+
+        for (const state of states) {
+            const common = {
+                name: state.name,
+                type: state.type,
+                role: state.role,
+                read: true,
+                write: state.write || false,
+            };
+            if (state.states) {
+                common.states = state.states;
+            }
+            await this.setObjectNotExists(`${prefix}.${state.id}`, {
+                type: 'state',
+                common,
+                native: {},
+            });
+        }
+    }
 
     /**
      * Create or update a transmitter object using setObjectNotExists
+     *
      * @param {string} id - Transmitter ID
      * @param {string} ip - IP address
      * @param {string} edid - EDID setting
      * @param {boolean|string} status - Connection status
      * @param {string} name - Optional name
      * @param {string} model - Optional model information
+     * @param audioSource
      */
     async createTransmitter(id, ip, edid, status, name, model, audioSource) {
         const txId = `transmitters.${id}`;
         let statusBool = false;
-        
+
         if (typeof status === 'string') {
             statusBool = status.includes('On');
         } else {
@@ -2091,18 +2150,18 @@ async ensureReceiverObjects(id) {
                 status: statusBool,
                 edid,
                 model: model || '',
-                name: name || `Transmitter ${id}`
+                name: name || `Transmitter ${id}`,
             };
 
             // Create the channel for this transmitter
             await this.setObjectNotExistsAsync(txId, {
                 type: 'channel',
                 common: {
-                    name: this.transmitterStates[id].name
+                    name: this.transmitterStates[id].name,
                 },
-                native: {}
+                native: {},
             });
-            
+
             // Create states for this transmitter
             await this.setObjectNotExistsAsync(`${txId}.id`, {
                 type: 'state',
@@ -2111,9 +2170,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.name',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${txId}.name`, {
@@ -2123,9 +2182,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.name',
                     read: true,
-                    write: true
+                    write: true,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${txId}.ip`, {
@@ -2135,9 +2194,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.ip',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${txId}.connected`, {
@@ -2147,9 +2206,9 @@ async ensureReceiverObjects(id) {
                     type: 'boolean',
                     role: 'indicator.connection',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${txId}.edid`, {
@@ -2159,9 +2218,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             // Add model state
@@ -2172,9 +2231,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${txId}.previewUrl`, {
@@ -2184,9 +2243,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'url',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
         }
 
@@ -2199,20 +2258,20 @@ async ensureReceiverObjects(id) {
                 role: 'level',
                 read: true,
                 write: true,
-                states: { 'AUTO': 'Auto', 'HDMI': 'HDMI', 'ANA': 'Analogue L/R' }
+                states: { AUTO: 'Auto', HDMI: 'HDMI', ANA: 'Analogue L/R' },
             },
-            native: {}
+            native: {},
         });
 
         // Update state values
         await this.setState(`${txId}.id`, id, true);
         await this.setState(`${txId}.ip`, ip, true);
         await this.setState(`${txId}.connected`, statusBool, true);
-        
+
         if (edid) {
             await this.setState(`${txId}.edid`, edid, true);
         }
-        
+
         if (model) {
             await this.setState(`${txId}.model`, model, true);
             // Update internal state
@@ -2227,15 +2286,15 @@ async ensureReceiverObjects(id) {
 
         if (name) {
             await this.setState(`${txId}.name`, name, true);
-            
+
             // Also update the channel name if it changed
             await this.extendObjectAsync(txId, {
                 common: {
-                    name: name
-                }
+                    name: name,
+                },
             });
         }
-        
+
         // Generate a preview URL - format as provided by user
         const timestamp = Date.now();
         const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${ip}&capwidth=240?time=${timestamp}`;
@@ -2247,12 +2306,13 @@ async ensureReceiverObjects(id) {
             ip,
             status: statusBool,
             edid,
-            name: name || this.transmitterStates[id].name
+            name: name || this.transmitterStates[id].name,
         };
     }
 
     /**
      * Create or update a receiver object using setObjectNotExists
+     *
      * @param {string} id - Receiver ID
      * @param {string} ip - IP address
      * @param {string} currentTx - Current transmitter ID
@@ -2265,7 +2325,7 @@ async ensureReceiverObjects(id) {
     async createReceiver(id, ip, currentTx, status, resolution, name, mode, model) {
         const rxId = `receivers.${id}`;
         let statusBool = false;
-        
+
         if (typeof status === 'string') {
             statusBool = status.includes('On');
         } else {
@@ -2282,18 +2342,18 @@ async ensureReceiverObjects(id) {
                 resolution,
                 mode: mode || '',
                 model: model || '',
-                name: name || `Receiver ${id}`
+                name: name || `Receiver ${id}`,
             };
 
             // Create the channel for this receiver
             await this.setObjectNotExistsAsync(rxId, {
                 type: 'channel',
                 common: {
-                    name: this.receiverStates[id].name
+                    name: this.receiverStates[id].name,
                 },
-                native: {}
+                native: {},
             });
-            
+
             // Create states for this receiver
             await this.setObjectNotExistsAsync(`${rxId}.id`, {
                 type: 'state',
@@ -2302,9 +2362,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.name',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.name`, {
@@ -2314,9 +2374,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.name',
                     read: true,
-                    write: true
+                    write: true,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.ip`, {
@@ -2326,9 +2386,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info.ip',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.connected`, {
@@ -2338,9 +2398,9 @@ async ensureReceiverObjects(id) {
                     type: 'boolean',
                     role: 'indicator.connection',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.route`, {
@@ -2350,9 +2410,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'level',
                     read: true,
-                    write: true
+                    write: true,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.resolution`, {
@@ -2362,9 +2422,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             // Add mode state
@@ -2375,9 +2435,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             // Add model state
@@ -2388,9 +2448,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'info',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
 
             await this.setObjectNotExistsAsync(`${rxId}.previewUrl`, {
@@ -2400,9 +2460,9 @@ async ensureReceiverObjects(id) {
                     type: 'string',
                     role: 'url',
                     read: true,
-                    write: false
+                    write: false,
                 },
-                native: {}
+                native: {},
             });
         }
 
@@ -2414,9 +2474,9 @@ async ensureReceiverObjects(id) {
                 type: 'string',
                 role: 'level',
                 read: true,
-                write: true
+                write: true,
             },
-            native: {}
+            native: {},
         });
         await this.setObjectNotExistsAsync(`${rxId}.audioRoute`, {
             type: 'state',
@@ -2425,9 +2485,9 @@ async ensureReceiverObjects(id) {
                 type: 'string',
                 role: 'level',
                 read: true,
-                write: true
+                write: true,
             },
-            native: {}
+            native: {},
         });
 
         // Update state values
@@ -2442,36 +2502,36 @@ async ensureReceiverObjects(id) {
         if (resolution) {
             await this.setState(`${rxId}.resolution`, resolution, true);
         }
-        
+
         if (mode) {
             await this.setState(`${rxId}.mode`, mode, true);
             // Update internal state
             this.receiverStates[id].mode = mode;
         }
-        
+
         if (model) {
             await this.setState(`${rxId}.model`, model, true);
             // Update internal state
             this.receiverStates[id].model = model;
         }
-        
+
         if (name) {
             await this.setState(`${rxId}.name`, name, true);
-            
+
             // Also update the channel name if it changed
             await this.extendObjectAsync(rxId, {
                 common: {
-                    name: name
-                }
+                    name: name,
+                },
             });
         }
-        
+
         // For Receiver preview, we need to use the connected transmitter's IP
         let sourceIp = '';
         if (this.transmitterStates[currentTx]) {
             sourceIp = this.transmitterStates[currentTx].ip;
         }
-        
+
         // Generate a preview URL - only if we have a source IP
         if (sourceIp) {
             const timestamp = Date.now();
@@ -2488,12 +2548,13 @@ async ensureReceiverObjects(id) {
             currentVideoTx: currentTx,
             currentAudioTx: currentTx,
             resolution,
-            name: name || this.receiverStates[id].name
+            name: name || this.receiverStates[id].name,
         };
     }
 
     /**
      * Route video from a transmitter to all receivers
+     *
      * @param {string} txId - Transmitter ID
      */
     routeVideoToAll(txId) {
@@ -2509,13 +2570,13 @@ async ensureReceiverObjects(id) {
         this.executeCommand(command)
             .then(() => {
                 this.log.info(`Successfully routed TX ${txId} (audio+video) to all receivers`);
-                
+
                 // Get source IP for preview URLs
                 let sourceIp = '';
                 if (this.transmitterStates[txId]) {
                     sourceIp = this.transmitterStates[txId].ip;
                 }
-                
+
                 // Update all receiver states
                 for (const rxId in this.receiverStates) {
                     this.setState(`receivers.${rxId}.route`, txId, true);
@@ -2540,6 +2601,7 @@ async ensureReceiverObjects(id) {
 
     /**
      * Route video only from a transmitter to all receivers
+     *
      * @param {string} txId - Transmitter ID
      */
     routeVideoOnlyToAll(txId) {
@@ -2576,6 +2638,7 @@ async ensureReceiverObjects(id) {
 
     /**
      * Route audio only from a transmitter to all receivers
+     *
      * @param {string} txId - Transmitter ID
      */
     routeAudioToAll(txId) {
@@ -2602,10 +2665,10 @@ async ensureReceiverObjects(id) {
     }
 }
 
-// @ts-ignore parent is a valid property on module
+// @ts-expect-error parent is a valid property on module
 if (module.parent) {
     // Export the constructor in compact mode
-    module.exports = (options) => new BlustreamAcm200(options);
+    module.exports = options => new BlustreamAcm200(options);
 } else {
     // otherwise start the instance directly
     new BlustreamAcm200();

@@ -1,0 +1,12 @@
+{
+    "Main settings": "Main settings",
+    "Advanced": "Advanced",
+    "Connection Settings": "Connection Settings",
+    "Advanced Settings": "Advanced Settings",
+    "IP Address": "IP Address",
+    "Port": "Port",
+    "Username": "Username",
+    "Password": "Password",
+    "Polling Interval (ms)": "Polling Interval (ms)",
+    "Command Timeout (ms)": "Command Timeout (ms)"
+}

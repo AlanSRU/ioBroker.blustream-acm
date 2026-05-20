@@ -1,0 +1,113 @@
+{
+    "i18n": true,
+    "type": "tabs",
+    "items": {
+        "_main": {
+            "type": "panel",
+            "label": "Main settings",
+            "items": {
+                "_header": {
+                    "type": "header",
+                    "text": "Connection Settings",
+                    "size": 5,
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                },
+                "host": {
+                    "type": "text",
+                    "label": "IP Address",
+                    "placeholder": "192.168.0.225",
+                    "help": "IP address of the ACM200 controller",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                },
+                "port": {
+                    "type": "number",
+                    "label": "Port",
+                    "min": 1,
+                    "max": 65535,
+                    "help": "Default Telnet port: 23",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                },
+                "username": {
+                    "type": "text",
+                    "label": "Username",
+                    "placeholder": "admin",
+                    "help": "Default: admin",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                },
+                "password": {
+                    "type": "password",
+                    "label": "Password",
+                    "repeat": false,
+                    "visible": true,
+                    "help": "Default: 1234",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                }
+            }
+        },
+        "_advanced": {
+            "type": "panel",
+            "label": "Advanced",
+            "items": {
+                "_advHeader": {
+                    "type": "header",
+                    "text": "Advanced Settings",
+                    "size": 5,
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                },
+                "pollInterval": {
+                    "type": "number",
+                    "label": "Polling Interval (ms)",
+                    "min": 1000,
+                    "step": 1000,
+                    "help": "How often to poll for status updates (default: 30000 ms)",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                },
+                "timeout": {
+                    "type": "number",
+                    "label": "Command Timeout (ms)",
+                    "min": 500,
+                    "step": 100,
+                    "help": "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                }
+            }
+        }
+    }
+}
