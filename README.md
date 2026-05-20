@@ -102,16 +102,10 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 -->
 ### __WORK IN PROGRESS__
 - (Alan Paris) Add `routeAll`, `routeAllVideo`, `routeAllAudio` commands to route a source to every display in one call
-- (Alan Paris) Now requires Node.js 20+, js-controller 6.0.11+, admin 7.6.20+
-- (Alan Paris) Migrated admin UI to jsonConfig; passwords are now encrypted at rest
-- (Alan Paris) Modernized internal tooling (release-script, ESLint 9, ioBroker testing actions)
+- (Alan Paris) Modernized internal tooling (release-script, ESLint 9, ioBroker testing actions, trusted publishing)
 
-### 1.1.0 (2025-05-02)
-- (Alan Paris) Added separate audio and video routing (VFR/AFR commands)
-- (Alan Paris) Added transmitter audio source selection (AUTO/HDMI/ANA)
-
-### 1.0.0 (2025-05-02)
-- (Alan Paris) Initial release
+### 0.1.0
+- (Alan Paris) Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection
 
 ## License
 
