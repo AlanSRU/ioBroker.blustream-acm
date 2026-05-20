@@ -187,6 +187,46 @@ class BlustreamAcm200 extends utils.Adapter {
             native: {}
         });
 
+        // Route-to-all-displays commands — write a transmitter ID to trigger
+        await this.setObjectNotExistsAsync('system.commands.routeAll', {
+            type: 'state',
+            common: {
+                name: 'Route to All Displays (Audio+Video)',
+                type: 'string',
+                role: 'text',
+                read: true,
+                write: true,
+                desc: 'Write a transmitter ID to route audio+video to all displays'
+            },
+            native: {}
+        });
+
+        await this.setObjectNotExistsAsync('system.commands.routeAllVideo', {
+            type: 'state',
+            common: {
+                name: 'Route to All Displays (Video Only)',
+                type: 'string',
+                role: 'text',
+                read: true,
+                write: true,
+                desc: 'Write a transmitter ID to route video only to all displays'
+            },
+            native: {}
+        });
+
+        await this.setObjectNotExistsAsync('system.commands.routeAllAudio', {
+            type: 'state',
+            common: {
+                name: 'Route to All Displays (Audio Only)',
+                type: 'string',
+                role: 'text',
+                read: true,
+                write: true,
+                desc: 'Write a transmitter ID to route audio only to all displays'
+            },
+            native: {}
+        });
+
         // Initialize folders for transmitters and receivers
         await this.setObjectNotExistsAsync('transmitters', {
             type: 'device',
@@ -207,6 +247,9 @@ class BlustreamAcm200 extends utils.Adapter {
         // Subscribe to states
         this.subscribeStates('system.commands.refresh');
         this.subscribeStates('system.commands.refreshAll');
+        this.subscribeStates('system.commands.routeAll');
+        this.subscribeStates('system.commands.routeAllVideo');
+        this.subscribeStates('system.commands.routeAllAudio');
         this.subscribeStates('receivers.*.route');
         this.subscribeStates('receivers.*.videoRoute');
         this.subscribeStates('receivers.*.audioRoute');
@@ -255,7 +298,26 @@ class BlustreamAcm200 extends utils.Adapter {
                     });
                 return;
             }
-    
+
+            // Handle route-to-all-displays commands
+            if (id === `${this.namespace}.system.commands.routeAll` && state.val) {
+                this.log.info(`Routing transmitter ${state.val} (audio+video) to all displays`);
+                this.routeVideoToAll(String(state.val));
+                return;
+            }
+
+            if (id === `${this.namespace}.system.commands.routeAllVideo` && state.val) {
+                this.log.info(`Routing video from transmitter ${state.val} to all displays`);
+                this.routeVideoOnlyToAll(String(state.val));
+                return;
+            }
+
+            if (id === `${this.namespace}.system.commands.routeAllAudio` && state.val) {
+                this.log.info(`Routing audio from transmitter ${state.val} to all displays`);
+                this.routeAudioToAll(String(state.val));
+                return;
+            }
+
             // Handle routing changes
             if (id.startsWith(`${this.namespace}.receivers.`)) {
                 const localId = id.slice(this.namespace.length + 1); // e.g. 'receivers.001.route'
@@ -440,8 +502,9 @@ class BlustreamAcm200 extends utils.Adapter {
                     // Start heartbeat with more appropriate timing
                     this.startHeartbeat();
                     
-                    // Get initial device status
-                    this.refreshDeviceStatus();
+                    // Get full device details (including names) on startup
+                    this.refreshAllDeviceDetails()
+                        .catch(err => this.log.warn(`Initial full refresh failed: ${err.message}`));
                     
                     // Start regular polling
                     this.startPolling();
@@ -1162,13 +1225,14 @@ handleData(data) {
             return;
         }
 
-        // Format for routing command is OUT[RX]FR[TX]
-        // Example: OUT001FR002 routes input 2 to output 1
-        const command = `OUT${rxId.padStart(3, '0')}FR${txId.padStart(3, '0')}`;
-        
+        // Single FR command routes both video and audio together.
+        const rxPad = rxId.padStart(3, '0');
+        const txPad = txId.padStart(3, '0');
+        const command = `OUT${rxPad}FR${txPad}`;
+
         this.executeCommand(command)
             .then(() => {
-                this.log.info(`Successfully routed TX ${txId} to RX ${rxId}`);
+                this.log.info(`Successfully routed TX ${txId} (audio+video) to RX ${rxId}`);
                 
                 // Update the state so it shows correctly in the UI
                 this.setState(`receivers.${rxId}.route`, txId, true);
@@ -1328,11 +1392,68 @@ handleData(data) {
         } catch (err) {
             this.log.error(`Error parsing transmitters: ${err.message}`);
         }
-        
+
         try {
             this.parseReceivers(data);
         } catch (err) {
             this.log.error(`Error parsing receivers: ${err.message}`);
+        }
+
+        // Clean up stale devices that are no longer reported by the ACM200
+        this.removeStaleDevices().catch(err => {
+            this.log.warn(`Error cleaning up stale devices: ${err.message}`);
+        });
+    }
+
+    /**
+     * Remove transmitter/receiver objects from ioBroker that are no longer
+     * reported by the ACM200 STATUS response.
+     */
+    async removeStaleDevices() {
+        // Only run cleanup once we have discovered at least one device of each type
+        // to avoid wiping everything on a malformed STATUS response
+        const knownTxIds = Object.keys(this.transmitterStates);
+        const knownRxIds = Object.keys(this.receiverStates);
+
+        if (knownTxIds.length === 0 && knownRxIds.length === 0) {
+            return;
+        }
+
+        // --- Transmitters ---
+        try {
+            const txChannels = await this.getChannelsOfAsync('transmitters');
+            if (txChannels) {
+                for (const obj of txChannels) {
+                    // obj._id is e.g. "blustream-acm200.0.transmitters.007"
+                    const idParts = obj._id.split('.');
+                    const deviceId = idParts[idParts.length - 1];
+
+                    if (!this.transmitterStates[deviceId]) {
+                        this.log.info(`Removing stale transmitter ${deviceId} (no longer reported by ACM200)`);
+                        await this.deleteChannelAsync('transmitters', deviceId);
+                    }
+                }
+            }
+        } catch (err) {
+            this.log.warn(`Error enumerating transmitter channels: ${err.message}`);
+        }
+
+        // --- Receivers ---
+        try {
+            const rxChannels = await this.getChannelsOfAsync('receivers');
+            if (rxChannels) {
+                for (const obj of rxChannels) {
+                    const idParts = obj._id.split('.');
+                    const deviceId = idParts[idParts.length - 1];
+
+                    if (!this.receiverStates[deviceId]) {
+                        this.log.info(`Removing stale receiver ${deviceId} (no longer reported by ACM200)`);
+                        await this.deleteChannelAsync('receivers', deviceId);
+                    }
+                }
+            }
+        } catch (err) {
+            this.log.warn(`Error enumerating receiver channels: ${err.message}`);
         }
     }
 
@@ -2314,7 +2435,10 @@ async ensureReceiverObjects(id) {
         await this.setState(`${rxId}.ip`, ip, true);
         await this.setState(`${rxId}.connected`, statusBool, true);
         await this.setState(`${rxId}.route`, currentTx, true);
-        
+        // STATUS only reports one FromIn value — keep video/audio route states in sync
+        await this.setState(`${rxId}.videoRoute`, currentTx, true);
+        await this.setState(`${rxId}.audioRoute`, currentTx, true);
+
         if (resolution) {
             await this.setState(`${rxId}.resolution`, resolution, true);
         }
@@ -2361,6 +2485,8 @@ async ensureReceiverObjects(id) {
             ip,
             status: statusBool,
             currentTx,
+            currentVideoTx: currentTx,
+            currentAudioTx: currentTx,
             resolution,
             name: name || this.receiverStates[id].name
         };
@@ -2376,13 +2502,13 @@ async ensureReceiverObjects(id) {
             return;
         }
 
-        // Format for routing command to all receivers is OUTALLFRXX
-        // Example: OUTALL003 routes input 3 to all outputs
-        const command = `OUTALL${txId.padStart(3, '0')}`;
-        
+        // Single FR command routes both video and audio together to all outputs.
+        const txPad = txId.padStart(3, '0');
+        const command = `OUT000FR${txPad}`;
+
         this.executeCommand(command)
             .then(() => {
-                this.log.info(`Successfully routed TX ${txId} to all receivers`);
+                this.log.info(`Successfully routed TX ${txId} (audio+video) to all receivers`);
                 
                 // Get source IP for preview URLs
                 let sourceIp = '';
@@ -2422,7 +2548,8 @@ async ensureReceiverObjects(id) {
             return;
         }
 
-        const command = `OUTALLVFR${txId.padStart(3, '0')}`;
+        // OUT 000 VFR yyy — ooo=000 selects all output ports per ACM200 protocol
+        const command = `OUT000VFR${txId.padStart(3, '0')}`;
 
         this.executeCommand(command)
             .then(() => {
@@ -2457,7 +2584,8 @@ async ensureReceiverObjects(id) {
             return;
         }
 
-        const command = `OUTALLAFR${txId.padStart(3, '0')}`;
+        // OUT 000 AFR yyy — ooo=000 selects all output ports per ACM200 protocol
+        const command = `OUT000AFR${txId.padStart(3, '0')}`;
 
         this.executeCommand(command)
             .then(() => {
