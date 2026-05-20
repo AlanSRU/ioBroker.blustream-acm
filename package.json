@@ -47,7 +47,7 @@
     "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.3.4",
     "@iobroker/testing": "^5.2.2",
-    "@types/node": "^20.10.0",
+    "@types/node": "^25.7.0",
     "eslint": "^9.38.0",
     "prettier": "^3.6.2"
   },
