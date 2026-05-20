@@ -13,7 +13,8 @@
         "it": "Routing audio e video separati (comandi VFR/AFR) e selezione della sorgente audio del trasmettitore (AUTO/HDMI/ANA)",
         "es": "Enrutamiento separado de audio y vídeo (comandos VFR/AFR) y selección de fuente de audio del transmisor (AUTO/HDMI/ANA)",
         "pl": "Oddzielne kierowanie audio i wideo (polecenia VFR/AFR) oraz wybór źródła dźwięku nadajnika (AUTO/HDMI/ANA)",
-        "zh-cn": "增加独立的音视频路由（VFR/AFR 命令）以及发射器音频源选择（AUTO/HDMI/ANA）"
+        "zh-cn": "增加独立的音视频路由（VFR/AFR 命令）以及发射器音频源选择（AUTO/HDMI/ANA）",
+        "uk": "Додайте окрему маршрутизацію аудіо та відео (команди VFR/AFR) і вибір джерела аудіо передавача (AUTO/HDMI/ANA)"
       },
       "1.0.0": {
         "en": "Initial release",
@@ -25,10 +26,10 @@
         "it": "Versione iniziale",
         "es": "Versión inicial",
         "pl": "Pierwsze wydanie",
-        "zh-cn": "首次出版"
+        "zh-cn": "首次出版",
+        "uk": "Початковий випуск"
       }
     },
-    "title": "Blustream ACM200 Matrix Controller",
     "titleLang": {
       "en": "Blustream ACM200 Matrix Controller",
       "de": "Blustream ACM200 Matrix-Controller",
@@ -39,7 +40,8 @@
       "it": "Controller matrice Blustream ACM200",
       "es": "Controlador de matriz Blustream ACM200",
       "pl": "Kontroler macierzy Blustream ACM200",
-      "zh-cn": "Blustream ACM200 矩阵控制器"
+      "zh-cn": "Blustream ACM200 矩阵控制器",
+      "uk": "Матричний контролер Blustream ACM200"
     },
     "desc": {
       "en": "Controls Blustream ACM200 matrix switches for audio/video distribution over IP",
@@ -51,9 +53,12 @@
       "it": "Controlla gli switch di matrice Blustream ACM200 per la distribuzione audio/video tramite IP",
       "es": "Controla los conmutadores de matriz Blustream ACM200 para la distribución de audio/video a través de IP",
       "pl": "Steruje przełącznikami matrycowymi Blustream ACM200 do dystrybucji audio/wideo przez IP",
-      "zh-cn": "控制 Blustream ACM200 矩阵交换机，用于通过 IP 进行音频/视频分发"
+      "zh-cn": "控制 Blustream ACM200 矩阵交换机，用于通过 IP 进行音频/视频分发",
+      "uk": "Керує матричними комутаторами Blustream ACM200 для розповсюдження аудіо/відео через IP"
     },
-    "authors": ["Alan Paris <alan.paris@scottish.rugby>"],
+    "authors": [
+      "Alan Paris <alan.paris@scottish.rugby>"
+    ],
     "keywords": [
       "blustream",
       "acm200",
@@ -68,7 +73,6 @@
       "type": "free"
     },
     "platform": "Javascript/Node.js",
-    "main": "main.js",
     "tier": 3,
     "icon": "blustream-acm200.png",
     "enabled": true,
@@ -102,8 +106,12 @@
     "username": "admin",
     "password": "1234"
   },
-  "protectedNative": ["password"],
-  "encryptedNative": ["password"],
+  "protectedNative": [
+    "password"
+  ],
+  "encryptedNative": [
+    "password"
+  ],
   "objects": [],
   "instanceObjects": [
     {
