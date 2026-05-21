@@ -35,7 +35,7 @@
     "url": "https://github.com/AlanSRU/ioBroker.blustream-acm200/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@iobroker/adapter-core": "^3.3.2"
@@ -47,8 +47,10 @@
     "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.3.4",
     "@iobroker/testing": "^5.2.2",
-    "@types/node": "^20.10.0",
+    "@types/node": "^22",
+    "chai": "^4.5.0",
     "eslint": "^9.38.0",
+    "mocha": "^11.7.3",
     "prettier": "^3.6.2"
   },
   "main": "main.js",
