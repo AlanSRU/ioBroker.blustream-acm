@@ -156,7 +156,7 @@ class BlustreamAcm200 extends utils.Adapter {
             common: {
                 name: 'Connection Status',
                 type: 'boolean',
-                role: 'indicator.connection',
+                role: 'indicator.connected',
                 read: true,
                 write: false,
             },
@@ -357,7 +357,7 @@ class BlustreamAcm200 extends utils.Adapter {
     /**
      * Clean up on adapter unload
      *
-     * @param callback
+     * @param {() => void} callback - Called when cleanup is complete
      */
     onUnload(callback) {
         try {
@@ -1830,19 +1830,19 @@ class BlustreamAcm200 extends utils.Adapter {
             { id: 'id', name: 'Transmitter ID', type: 'string', role: 'info.name' },
             { id: 'name', name: 'Transmitter Name', type: 'string', role: 'info.name', write: true },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
-            { id: 'edid', name: 'EDID Setting', type: 'string', role: 'info' },
+            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
+            { id: 'edid', name: 'EDID Setting', type: 'string', role: 'text' },
             {
                 id: 'audioSource',
                 name: 'Audio Source',
                 type: 'string',
-                role: 'level',
+                role: 'text',
                 write: true,
                 states: { AUTO: 'Auto', HDMI: 'HDMI', ANA: 'Analogue L/R' },
             },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
             { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
-            { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
+            { id: 'model', name: 'Product Model', type: 'string', role: 'info.model' },
             { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' },
         ];
 
@@ -2090,15 +2090,15 @@ class BlustreamAcm200 extends utils.Adapter {
             { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
             { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name', write: true },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connection' },
-            { id: 'route', name: 'Current Source', type: 'string', role: 'level', write: true },
-            { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'level', write: true },
-            { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'level', write: true },
-            { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'info' },
-            { id: 'mode', name: 'Operation Mode', type: 'string', role: 'info' },
+            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
+            { id: 'route', name: 'Current Source', type: 'string', role: 'text', write: true },
+            { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'text', write: true },
+            { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'text', write: true },
+            { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'text' },
+            { id: 'mode', name: 'Operation Mode', type: 'string', role: 'text' },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
             { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
-            { id: 'model', name: 'Product Model', type: 'string', role: 'info' },
+            { id: 'model', name: 'Product Model', type: 'string', role: 'info.model' },
             { id: 'previewUrl', name: 'Preview Image URL', type: 'string', role: 'url' },
         ];
 
@@ -2130,7 +2130,7 @@ class BlustreamAcm200 extends utils.Adapter {
      * @param {boolean|string} status - Connection status
      * @param {string} name - Optional name
      * @param {string} model - Optional model information
-     * @param audioSource
+     * @param {string} audioSource - Optional audio source (HDMI/ANA/AUTO)
      */
     async createTransmitter(id, ip, edid, status, name, model, audioSource) {
         const txId = `transmitters.${id}`;
@@ -2142,6 +2142,9 @@ class BlustreamAcm200 extends utils.Adapter {
             statusBool = !!status;
         }
 
+        // Ensure all objects exist (single source of truth: ensureTransmitterObjects)
+        await this.ensureTransmitterObjects(id);
+
         // Save the transmitter info to our internal state
         if (!this.transmitterStates[id]) {
             this.transmitterStates[id] = {
@@ -2152,116 +2155,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 model: model || '',
                 name: name || `Transmitter ${id}`,
             };
-
-            // Create the channel for this transmitter
-            await this.setObjectNotExistsAsync(txId, {
-                type: 'channel',
-                common: {
-                    name: this.transmitterStates[id].name,
-                },
-                native: {},
-            });
-
-            // Create states for this transmitter
-            await this.setObjectNotExistsAsync(`${txId}.id`, {
-                type: 'state',
-                common: {
-                    name: 'Transmitter ID',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${txId}.name`, {
-                type: 'state',
-                common: {
-                    name: 'Transmitter Name',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: true,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${txId}.ip`, {
-                type: 'state',
-                common: {
-                    name: 'IP Address',
-                    type: 'string',
-                    role: 'info.ip',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${txId}.connected`, {
-                type: 'state',
-                common: {
-                    name: 'Connected',
-                    type: 'boolean',
-                    role: 'indicator.connection',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${txId}.edid`, {
-                type: 'state',
-                common: {
-                    name: 'EDID Setting',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            // Add model state
-            await this.setObjectNotExistsAsync(`${txId}.model`, {
-                type: 'state',
-                common: {
-                    name: 'Product Model',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${txId}.previewUrl`, {
-                type: 'state',
-                common: {
-                    name: 'Preview Image URL',
-                    type: 'string',
-                    role: 'url',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
         }
-
-        // Always ensure new states exist (even for previously created transmitters)
-        await this.setObjectNotExistsAsync(`${txId}.audioSource`, {
-            type: 'state',
-            common: {
-                name: 'Audio Source',
-                type: 'string',
-                role: 'level',
-                read: true,
-                write: true,
-                states: { AUTO: 'Auto', HDMI: 'HDMI', ANA: 'Analogue L/R' },
-            },
-            native: {},
-        });
 
         // Update state values
         await this.setState(`${txId}.id`, id, true);
@@ -2332,6 +2226,9 @@ class BlustreamAcm200 extends utils.Adapter {
             statusBool = !!status;
         }
 
+        // Ensure all objects exist (single source of truth: ensureReceiverObjects)
+        await this.ensureReceiverObjects(id);
+
         // Save the receiver info to our internal state
         if (!this.receiverStates[id]) {
             this.receiverStates[id] = {
@@ -2344,151 +2241,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 model: model || '',
                 name: name || `Receiver ${id}`,
             };
-
-            // Create the channel for this receiver
-            await this.setObjectNotExistsAsync(rxId, {
-                type: 'channel',
-                common: {
-                    name: this.receiverStates[id].name,
-                },
-                native: {},
-            });
-
-            // Create states for this receiver
-            await this.setObjectNotExistsAsync(`${rxId}.id`, {
-                type: 'state',
-                common: {
-                    name: 'Receiver ID',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.name`, {
-                type: 'state',
-                common: {
-                    name: 'Receiver Name',
-                    type: 'string',
-                    role: 'info.name',
-                    read: true,
-                    write: true,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.ip`, {
-                type: 'state',
-                common: {
-                    name: 'IP Address',
-                    type: 'string',
-                    role: 'info.ip',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.connected`, {
-                type: 'state',
-                common: {
-                    name: 'Connected',
-                    type: 'boolean',
-                    role: 'indicator.connection',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.route`, {
-                type: 'state',
-                common: {
-                    name: 'Current Source',
-                    type: 'string',
-                    role: 'level',
-                    read: true,
-                    write: true,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.resolution`, {
-                type: 'state',
-                common: {
-                    name: 'Output Resolution',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            // Add mode state
-            await this.setObjectNotExistsAsync(`${rxId}.mode`, {
-                type: 'state',
-                common: {
-                    name: 'Operation Mode',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            // Add model state
-            await this.setObjectNotExistsAsync(`${rxId}.model`, {
-                type: 'state',
-                common: {
-                    name: 'Product Model',
-                    type: 'string',
-                    role: 'info',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-
-            await this.setObjectNotExistsAsync(`${rxId}.previewUrl`, {
-                type: 'state',
-                common: {
-                    name: 'Preview Image URL',
-                    type: 'string',
-                    role: 'url',
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
         }
-
-        // Always ensure new states exist (even for previously created receivers)
-        await this.setObjectNotExistsAsync(`${rxId}.videoRoute`, {
-            type: 'state',
-            common: {
-                name: 'Video Source',
-                type: 'string',
-                role: 'level',
-                read: true,
-                write: true,
-            },
-            native: {},
-        });
-        await this.setObjectNotExistsAsync(`${rxId}.audioRoute`, {
-            type: 'state',
-            common: {
-                name: 'Audio Source',
-                type: 'string',
-                role: 'level',
-                read: true,
-                write: true,
-            },
-            native: {},
-        });
 
         // Update state values
         await this.setState(`${rxId}.id`, id, true);

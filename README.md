@@ -100,6 +100,9 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
+### __WORK IN PROGRESS__
+- (Alan Paris) Corrected state roles (routing/audio selectors, connection status, device info) for object-checker compliance
+
 ### 0.2.1 (2026-05-20)
 - (Alan Paris) Bundle adapter icon in the npm tarball
 
