@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "blustream-acm200",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "news": {
+      "0.2.2": {
+        "en": "Corrected state roles (routing/audio selectors, connection status, device info) for object-checker compliance",
+        "de": "Korrigierte Statusrollen (Routing-/Audio-Selektoren, Verbindungsstatus, Geräteinformationen) zur Gewährleistung der Objektprüfung",
+        "ru": "Исправлены роли состояний (селекторы маршрутизации/аудио, статус подключения, информация об устройстве) для обеспечения соответствия требованиям средства проверки объектов.",
+        "pt": "Funções de estado corrigidas (seletores de roteamento/áudio, status da conexão, informações do dispositivo) para conformidade com o verificador de objetos.",
+        "nl": "De statusrollen (routerings-/audioselectoren, verbindingsstatus, apparaatinformatie) zijn gecorrigeerd voor naleving van de objectcontrole.",
+        "fr": "Rôles d'état corrigés (sélecteurs de routage/audio, état de la connexion, informations sur le périphérique) pour la conformité au vérificateur d'objets",
+        "it": "Ruoli di stato corretti (selettori di routing/audio, stato della connessione, informazioni sul dispositivo) per la conformità con il controllo degli oggetti.",
+        "es": "Se corrigieron los roles de estado (selectores de enrutamiento/audio, estado de la conexión, información del dispositivo) para cumplir con los requisitos del verificador de objetos.",
+        "pl": "Poprawiono role stanu (selektory routingu/audio, stan połączenia, informacje o urządzeniu) w celu zapewnienia zgodności z programem do sprawdzania obiektów",
+        "uk": "Виправлено ролі станів (селектори маршрутизації/аудіо, стан з'єднання, інформація про пристрій) для відповідності перевірки об'єктів",
+        "zh-cn": "已修正状态角色（路由/音频选择器、连接状态、设备信息），以符合对象检查器要求"
+      },
       "0.2.1": {
         "en": "Bundle adapter icon in the npm tarball",
         "de": "Bundle Adapter-Symbol im npm tarball",
