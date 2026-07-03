@@ -3,10 +3,17 @@
     "Advanced Settings": "Impostazioni avanzate",
     "Command Timeout (ms)": "Timeout comando (ms)",
     "Connection Settings": "Impostazioni di connessione",
+    "Default Telnet port: 23": "Porta Telnet predefinita: 23",
+    "Default: 1234": "Predefinito: 1234",
+    "Default: admin": "Predefinito: amministratore",
+    "How often to poll for status updates (default: 30000 ms)": "La frequenza con cui eseguire il polling per gli aggiornamenti di stato (impostazione predefinita: 30000 ms)",
     "IP Address": "Indirizzo IP",
+    "IP address of the ACM200 controller": "Indirizzo IP del controller ACM200",
     "Main settings": "Impostazioni principali",
     "Password": "Password",
     "Polling Interval (ms)": "Intervallo di polling (ms)",
     "Port": "Porta",
-    "Username": "Nome utente"
+    "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "Timeout per i comandi inviati all'ACM200 (predefinito: 5000 ms). Intervalli di polling più brevi forniscono aggiornamenti più frequenti ma aumentano il traffico di rete.",
+    "Username": "Nome utente",
+    "admin": "amministratore"
 }

@@ -100,6 +100,9 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
+### __WORK IN PROGRESS__
+- (Alan Paris) Resolve adapter-checker errors: use framework-managed timers, add missing config help translations, and clean up redundant devDependencies
+
 ### 0.2.2 (2026-07-02)
 - (Alan Paris) Corrected state roles (routing/audio selectors, connection status, device info) for object-checker compliance
 

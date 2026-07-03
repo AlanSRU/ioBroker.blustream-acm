@@ -3,10 +3,17 @@
     "Advanced Settings": "Расширенные настройки",
     "Command Timeout (ms)": "Тайм-аут команды (мс)",
     "Connection Settings": "Настройки подключения",
+    "Default Telnet port: 23": "Порт Telnet по умолчанию: 23",
+    "Default: 1234": "По умолчанию: 1234",
+    "Default: admin": "По умолчанию: администратор",
+    "How often to poll for status updates (default: 30000 ms)": "Как часто запрашивать обновления статуса (по умолчанию: 30 000 мс)",
     "IP Address": "IP-адрес",
+    "IP address of the ACM200 controller": "IP-адрес контроллера ACM200",
     "Main settings": "Основные настройки",
     "Password": "Пароль",
     "Polling Interval (ms)": "Интервал опроса (мс)",
     "Port": "Порт",
-    "Username": "Имя пользователя"
+    "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "Тайм-аут команд, отправляемых на ACM200 (по умолчанию: 5000 мс). Более короткие интервалы опроса обеспечивают более частые обновления, но увеличивают сетевой трафик.",
+    "Username": "Имя пользователя",
+    "admin": "администратор"
 }

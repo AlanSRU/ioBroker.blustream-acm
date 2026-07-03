@@ -363,30 +363,30 @@ class BlustreamAcm200 extends utils.Adapter {
         try {
             // Clear timers
             if (this.pollTimer) {
-                clearTimeout(this.pollTimer);
+                this.clearTimeout(this.pollTimer);
                 this.pollTimer = null;
             }
             if (this.reconnectTimer) {
-                clearTimeout(this.reconnectTimer);
+                this.clearTimeout(this.reconnectTimer);
                 this.reconnectTimer = null;
             }
             if (this.heartbeatTimer) {
-                clearInterval(this.heartbeatTimer);
+                this.clearInterval(this.heartbeatTimer);
                 this.heartbeatTimer = null;
             }
             if (this.heartbeatTimeout) {
-                clearTimeout(this.heartbeatTimeout);
+                this.clearTimeout(this.heartbeatTimeout);
                 this.heartbeatTimeout = null;
             }
             if (this.scheduledRefreshTimer) {
-                clearTimeout(this.scheduledRefreshTimer);
+                this.clearTimeout(this.scheduledRefreshTimer);
                 this.scheduledRefreshTimer = null;
             }
 
             // Clear command queue
             this.commandQueue.forEach(cmd => {
                 if (cmd.timer) {
-                    clearTimeout(cmd.timer);
+                    this.clearTimeout(cmd.timer);
                 }
             });
             this.commandQueue = [];
@@ -485,7 +485,7 @@ class BlustreamAcm200 extends utils.Adapter {
         this.log.info('Socket connected to ACM200');
 
         // Wait longer before sending test command
-        setTimeout(() => {
+        this.setTimeout(() => {
             this.log.debug('Sending test command after connection');
             this.log.debug(`Test command is: STATUS with timeout ${this.timeout}ms`);
 
@@ -561,7 +561,7 @@ class BlustreamAcm200 extends utils.Adapter {
      */
     startHeartbeat() {
         if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
+            this.clearInterval(this.heartbeatTimer);
         }
 
         // Use the instance heartbeat interval
@@ -569,7 +569,7 @@ class BlustreamAcm200 extends utils.Adapter {
 
         this.log.info(`Starting heartbeat monitoring (interval: ${heartbeatInterval}ms)`);
 
-        this.heartbeatTimer = setInterval(() => {
+        this.heartbeatTimer = this.setInterval(() => {
             if (!this.connected || !this.socket) {
                 return;
             }
@@ -605,11 +605,11 @@ class BlustreamAcm200 extends utils.Adapter {
     resetHeartbeatTimeout() {
         // Clear existing timeout
         if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
+            this.clearTimeout(this.heartbeatTimeout);
         }
 
         // Set new timeout
-        this.heartbeatTimeout = setTimeout(() => {
+        this.heartbeatTimeout = this.setTimeout(() => {
             this.log.error('Heartbeat timeout - connection considered dead');
             this.cleanup(true);
         }, this.heartbeatInterval * 1.5); // 1.5 times the interval for some grace period
@@ -642,7 +642,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 resolve,
                 reject,
                 responseReceived: false, // Track if any response was received
-                timer: setTimeout(() => {
+                timer: this.setTimeout(() => {
                     // If we've received some response but not completed, don't time out
                     if (
                         this.commandQueue.length > 0 &&
@@ -653,7 +653,7 @@ class BlustreamAcm200 extends utils.Adapter {
                             `Command ${command} received partial response but not completed, extending timeout`,
                         );
                         // Extend timeout by adding another timer
-                        this.commandQueue[0].timer = setTimeout(() => {
+                        this.commandQueue[0].timer = this.setTimeout(() => {
                             this.log.warn(`Command still timed out after extension: ${command}`);
                             // Now we really time out
                             if (this.commandQueue.length > 0 && this.commandQueue[0].command === command) {
@@ -743,7 +743,7 @@ class BlustreamAcm200 extends utils.Adapter {
             this.socket.write(commandToSend, 'utf8', err => {
                 if (err) {
                     // Handle write error
-                    clearTimeout(cmd.timer);
+                    this.clearTimeout(cmd.timer);
                     cmd.reject(new Error(`Failed to send command: ${err.message}`));
                     this.commandQueue.shift();
                     this.processingCommand = false;
@@ -755,7 +755,7 @@ class BlustreamAcm200 extends utils.Adapter {
             });
         } catch (err) {
             // Handle any exceptions
-            clearTimeout(cmd.timer);
+            this.clearTimeout(cmd.timer);
             cmd.reject(new Error(`Exception sending command: ${err.message}`));
             this.commandQueue.shift();
             this.processingCommand = false;
@@ -881,13 +881,13 @@ class BlustreamAcm200 extends utils.Adapter {
 
             if (commandComplete) {
                 this.log.debug(`Completing command: ${cmdStr}`);
-                clearTimeout(currentCmd.timer);
+                this.clearTimeout(currentCmd.timer);
                 currentCmd.resolve(line);
                 this.commandQueue.shift();
                 this.processingCommand = false;
 
                 // Small delay before next command so the ACM200 can settle
-                setTimeout(() => this.processNextCommand(), 100);
+                this.setTimeout(() => this.processNextCommand(), 100);
             }
         }
 
@@ -927,23 +927,23 @@ class BlustreamAcm200 extends utils.Adapter {
 
         // Clear all timers
         if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
+            this.clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = null;
         }
 
         if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
+            this.clearTimeout(this.heartbeatTimeout);
             this.heartbeatTimeout = null;
         }
 
         if (this.pollTimer) {
-            clearTimeout(this.pollTimer);
+            this.clearTimeout(this.pollTimer);
             this.pollTimer = null;
         }
 
         // Clear command queue and reject any pending commands
         this.commandQueue.forEach(cmd => {
-            clearTimeout(cmd.timer);
+            this.clearTimeout(cmd.timer);
             cmd.reject(new Error('Connection closed'));
         });
         this.commandQueue = [];
@@ -962,7 +962,7 @@ class BlustreamAcm200 extends utils.Adapter {
         if (reconnect && !this.reconnectTimer) {
             this.log.info(`Will attempt to reconnect in ${this.reconnectDelay / 1000} seconds`);
 
-            this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = this.setTimeout(() => {
                 this.reconnectTimer = null;
                 this.connectToACM();
             }, this.reconnectDelay);
@@ -974,10 +974,10 @@ class BlustreamAcm200 extends utils.Adapter {
      */
     startPolling() {
         if (this.pollTimer) {
-            clearTimeout(this.pollTimer);
+            this.clearTimeout(this.pollTimer);
         }
 
-        this.pollTimer = setTimeout(() => {
+        this.pollTimer = this.setTimeout(() => {
             // Check if a full refresh is already running before polling
             this.getStateAsync('system.status.fullRefreshRunning')
                 .then(state => {
@@ -1059,7 +1059,7 @@ class BlustreamAcm200 extends utils.Adapter {
     setupScheduledRefresh() {
         // Clear any existing scheduled refresh
         if (this.scheduledRefreshTimer) {
-            clearTimeout(this.scheduledRefreshTimer);
+            this.clearTimeout(this.scheduledRefreshTimer);
             this.scheduledRefreshTimer = null;
         }
 
@@ -1086,7 +1086,7 @@ class BlustreamAcm200 extends utils.Adapter {
         this.setState('system.status.nextScheduledRefresh', nextRefresh.toISOString(), true);
 
         // Schedule the refresh
-        this.scheduledRefreshTimer = setTimeout(() => {
+        this.scheduledRefreshTimer = this.setTimeout(() => {
             this.log.info('Running scheduled device information refresh');
 
             this.refreshAllDeviceDetails()
@@ -1121,7 +1121,7 @@ class BlustreamAcm200 extends utils.Adapter {
             this.executeCommand('STATUS')
                 .then(() => {
                     // Wait for STATUS to be processed, then fetch detailed information
-                    setTimeout(() => {
+                    this.setTimeout(() => {
                         this.fetchDetailedInformation()
                             .then(() => {
                                 this.log.info('Full device refresh completed successfully');
@@ -1164,7 +1164,7 @@ class BlustreamAcm200 extends utils.Adapter {
             Object.keys(this.transmitterStates).forEach((txId, index) => {
                 fetchPromises.push(
                     new Promise(resolve => {
-                        setTimeout(() => {
+                        this.setTimeout(() => {
                             this.fetchTransmitterDetails(txId)
                                 .catch(err => this.log.warn(`Error fetching TX ${txId} details: ${err.message}`))
                                 .finally(() => resolve());
@@ -1178,7 +1178,7 @@ class BlustreamAcm200 extends utils.Adapter {
             Object.keys(this.receiverStates).forEach((rxId, index) => {
                 fetchPromises.push(
                     new Promise(resolve => {
-                        setTimeout(
+                        this.setTimeout(
                             () => {
                                 this.fetchReceiverDetails(rxId)
                                     .catch(err => this.log.warn(`Error fetching RX ${rxId} details: ${err.message}`))
