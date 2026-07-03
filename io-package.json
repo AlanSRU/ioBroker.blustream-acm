@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "blustream-acm200",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "news": {
+      "0.2.3": {
+        "en": "Resolve adapter-checker errors: use framework-managed timers, add missing config help translations, and clean up redundant devDependencies",
+        "de": "Adapter-Checker-Fehler beheben: Framework-verwaltete Timer verwenden, fehlende Konfigurationshilfenübersetzungen hinzufügen und redundante Entwicklungsabhängigkeiten bereinigen",
+        "ru": "Устранить ошибки адаптера проверки: использовать таймеры, управляемые фреймворком, добавить недостающие переводы справки по конфигурации и очистить избыточные зависимости для разработки.",
+        "pt": "Resolver erros do adapter-checker: usar temporizadores gerenciados pelo framework, adicionar traduções ausentes na ajuda de configuração e limpar dependências de desenvolvimento redundantes.",
+        "nl": "Los fouten in de adaptercontrole op: gebruik door het framework beheerde timers, voeg ontbrekende vertalingen van configuratiehelp toe en ruim overbodige devDependencies op.",
+        "fr": "Résoudre les erreurs de vérification d'adaptateur : utiliser des minuteurs gérés par le framework, ajouter les traductions manquantes de l'aide à la configuration et supprimer les dépendances de développement redondantes.",
+        "it": "Risolvi gli errori dell'adapter-checker: utilizza i timer gestiti dal framework, aggiungi le traduzioni mancanti della guida alla configurazione e rimuovi le dipendenze di sviluppo ridondanti.",
+        "es": "Solucionar errores de adapter-checker: usar temporizadores gestionados por el framework, añadir traducciones de ayuda de configuración faltantes y limpiar dependencias dev redundantes.",
+        "pl": "Rozwiąż błędy adaptera-checkera: użyj timerów zarządzanych przez framework, dodaj brakujące tłumaczenia pomocy konfiguracji i usuń zbędne zależności deweloperskie",
+        "uk": "Вирішення помилок перевірки адаптера: використання таймерів, керованих платформою, додавання відсутніх перекладів довідки конфігурації та очищення надлишкових залежностей розробника",
+        "zh-cn": "解决适配器检查器错误：使用框架管理的计时器，添加缺失的配置帮助翻译，并清理冗余的开发依赖项。"
+      },
       "0.2.2": {
         "en": "Corrected state roles (routing/audio selectors, connection status, device info) for object-checker compliance",
         "de": "Korrigierte Statusrollen (Routing-/Audio-Selektoren, Verbindungsstatus, Geräteinformationen) zur Gewährleistung der Objektprüfung",
