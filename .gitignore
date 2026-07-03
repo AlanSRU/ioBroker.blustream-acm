@@ -36,3 +36,6 @@ iobroker-data/
 
 # npm pack output
 *.tgz
+
+# Local development notes (not part of the repo)
+CLAUDE.md
