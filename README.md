@@ -105,7 +105,7 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
-### __WORK IN PROGRESS__
+### 0.2.4 (2026-07-03)
 - (Alan Paris) Remove unused username/password settings — the ACM200 telnet interface requires no login
 - (Alan Paris) Transmitter/receiver name states are now read-only (they are reported by the device and cannot be set from the adapter)
 - (Alan Paris) Validate and clamp polling interval and command timeout to safe ranges
@@ -123,9 +123,6 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 ### 0.2.0 (2026-05-20)
 - (Alan Paris) Add `routeAll`, `routeAllVideo`, `routeAllAudio` commands to route a source to every display in one call
 - (Alan Paris) Modernized internal tooling (release-script, ESLint 9, ioBroker testing actions, trusted publishing)
-
-### 0.1.0
-- (Alan Paris) Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection
 
 **Older changes have been moved to [CHANGELOG_OLD.md](CHANGELOG_OLD.md)**
 
