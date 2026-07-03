@@ -116,6 +116,8 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 ### 0.1.0
 - (Alan Paris) Initial release: transmitter/receiver discovery, video and audio routing (combined and independent), transmitter audio source selection
 
+**Older changes have been moved to [CHANGELOG_OLD.md](CHANGELOG_OLD.md)**
+
 ## License
 
 MIT License
