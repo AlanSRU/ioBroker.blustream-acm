@@ -13,6 +13,13 @@
 
 Controls a Blustream ACM200 matrix controller for HDMI-over-IP audio/video distribution. Discovers connected transmitters and receivers via the ACM200's telnet interface and exposes routing/status states for each.
 
+### Supported hardware
+
+- **Device:** [Blustream ACM200 Advanced Control & Management Appliance](https://www.blustream.com/product/acm200/)
+- **Manufacturer:** [Blustream](https://www.blustream.com/)
+
+This adapter is not affiliated with or endorsed by Blustream; all trademarks belong to their respective owners.
+
 ## Features
 
 - Automatic discovery of connected transmitters and receivers
@@ -32,8 +39,6 @@ Install the adapter from the ioBroker admin interface (Adapters → search for "
 
 - **IP Address**: IP address of your ACM200 controller (default: 192.168.0.225)
 - **Port**: Telnet port (default: 23)
-- **Username**: ACM200 login (default: admin)
-- **Password**: ACM200 password (default: 1234) — encrypted at rest
 
 ### Advanced Settings
 
@@ -100,6 +105,12 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
+### __WORK IN PROGRESS__
+- (Alan Paris) Remove unused username/password settings — the ACM200 telnet interface requires no login
+- (Alan Paris) Transmitter/receiver name states are now read-only (they are reported by the device and cannot be set from the adapter)
+- (Alan Paris) Validate and clamp polling interval and command timeout to safe ranges
+- (Alan Paris) Add Blustream product/manufacturer links to the documentation
+
 ### 0.2.3 (2026-07-03)
 - (Alan Paris) Resolve adapter-checker errors: use framework-managed timers, add missing config help translations, and clean up redundant devDependencies
 

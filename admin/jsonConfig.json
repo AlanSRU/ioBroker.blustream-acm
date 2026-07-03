@@ -40,30 +40,6 @@
                     "md": 6,
                     "lg": 6,
                     "xl": 6
-                },
-                "username": {
-                    "type": "text",
-                    "label": "Username",
-                    "placeholder": "admin",
-                    "help": "Default: admin",
-                    "newLine": true,
-                    "xs": 12,
-                    "sm": 12,
-                    "md": 6,
-                    "lg": 6,
-                    "xl": 6
-                },
-                "password": {
-                    "type": "password",
-                    "label": "Password",
-                    "repeat": false,
-                    "visible": true,
-                    "help": "Default: 1234",
-                    "xs": 12,
-                    "sm": 12,
-                    "md": 6,
-                    "lg": 6,
-                    "xl": 6
                 }
             }
         },
@@ -86,6 +62,7 @@
                     "type": "number",
                     "label": "Polling Interval (ms)",
                     "min": 1000,
+                    "max": 3600000,
                     "step": 1000,
                     "help": "How often to poll for status updates (default: 30000 ms)",
                     "newLine": true,
@@ -99,6 +76,7 @@
                     "type": "number",
                     "label": "Command Timeout (ms)",
                     "min": 500,
+                    "max": 60000,
                     "step": 100,
                     "help": "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.",
                     "xs": 12,

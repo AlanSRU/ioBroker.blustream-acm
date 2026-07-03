@@ -128,16 +128,8 @@
     "host": "192.168.0.225",
     "port": 23,
     "pollInterval": 30000,
-    "timeout": 5000,
-    "username": "admin",
-    "password": "1234"
+    "timeout": 5000
   },
-  "protectedNative": [
-    "password"
-  ],
-  "encryptedNative": [
-    "password"
-  ],
   "objects": [],
   "instanceObjects": [
     {

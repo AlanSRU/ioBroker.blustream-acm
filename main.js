@@ -26,15 +26,12 @@ class BlustreamAcm200 extends utils.Adapter {
         this.port = 23; // Default Telnet port
         this.pollInterval = 30000; // Poll every 30 seconds
 
-        // Old connection variables - kept for reference but not used with new socket approach
-        this.client = null;
         this.pollTimer = null;
         this.reconnectTimer = null;
         this.connected = false;
         this.receiverStates = {};
         this.transmitterStates = {};
         this.connectionInProgress = false;
-        this.lastCommandTime = 0;
 
         // Variables for scheduled refresh
         this.scheduledRefreshTimer = null;
@@ -55,6 +52,38 @@ class BlustreamAcm200 extends utils.Adapter {
         this.txInfoBuffer = '';
         this.collectingRxInfo = false;
         this.rxInfoBuffer = '';
+    }
+
+    /**
+     * Parse, validate and clamp a numeric config value into the inclusive range [min, max].
+     * Empty/non-numeric input falls back to `fallback`; out-of-range values are clamped with a warning.
+     * Guards timers against negative and >Node-max (2^31-1) values reaching setTimeout/setInterval.
+     *
+     * @param {string} name - Config key name, used in log messages
+     * @param {string|number|undefined|null} raw - Raw value from this.config
+     * @param {number} fallback - Default used when raw is empty or not a finite number
+     * @param {number} min - Lower bound (inclusive)
+     * @param {number} max - Upper bound (inclusive)
+     * @returns {number} A finite integer within [min, max]
+     */
+    validateNumber(name, raw, fallback, min, max) {
+        if (raw === undefined || raw === null || raw === '') {
+            return fallback;
+        }
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed)) {
+            this.log.warn(`Config "${name}" is not a valid number ("${raw}"); using default ${fallback}`);
+            return fallback;
+        }
+        if (parsed < min) {
+            this.log.warn(`Config "${name}" (${parsed}) is below the minimum ${min}; clamping to ${min}`);
+            return min;
+        }
+        if (parsed > max) {
+            this.log.warn(`Config "${name}" (${parsed}) exceeds the maximum ${max}; clamping to ${max}`);
+            return max;
+        }
+        return Math.floor(parsed);
     }
 
     /**
@@ -117,11 +146,17 @@ class BlustreamAcm200 extends utils.Adapter {
         // Reset the connection indicator at startup
         this.setState('info.connection', false, true);
 
-        // Get configuration from admin settings
+        // Get configuration from admin settings (validated & clamped to safe ranges)
         this.host = this.config.host || this.host;
-        this.port = parseInt(this.config.port) || this.port;
-        this.pollInterval = parseInt(this.config.pollInterval) || this.pollInterval;
-        this.timeout = parseInt(this.config.timeout) || this.timeout;
+        this.port = this.validateNumber('port', this.config.port, this.port, 1, 65535);
+        this.pollInterval = this.validateNumber(
+            'pollInterval',
+            this.config.pollInterval,
+            this.pollInterval,
+            1000,
+            3600000,
+        );
+        this.timeout = this.validateNumber('timeout', this.config.timeout, this.timeout, 500, 60000);
 
         this.log.info(`Initializing with host: ${this.host}, port: ${this.port}, timeout: ${this.timeout}ms`);
 
@@ -1828,7 +1863,7 @@ class BlustreamAcm200 extends utils.Adapter {
         // Create all states
         const states = [
             { id: 'id', name: 'Transmitter ID', type: 'string', role: 'info.name' },
-            { id: 'name', name: 'Transmitter Name', type: 'string', role: 'info.name', write: true },
+            { id: 'name', name: 'Transmitter Name', type: 'string', role: 'info.name' },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
             { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
             { id: 'edid', name: 'EDID Setting', type: 'string', role: 'text' },
@@ -2088,7 +2123,7 @@ class BlustreamAcm200 extends utils.Adapter {
         // Create all states
         const states = [
             { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
-            { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name', write: true },
+            { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name' },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
             { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
             { id: 'route', name: 'Current Source', type: 'string', role: 'text', write: true },
