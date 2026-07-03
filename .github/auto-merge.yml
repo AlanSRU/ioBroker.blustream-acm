@@ -1,0 +1,6 @@
+# Auto-merge policy for Dependabot PRs.
+# Consumed by .github/workflows/automerge-dependabot.yml.
+# "semver:minor" covers both minor and patch updates; major updates are never auto-merged.
+- match:
+    dependency_type: all
+    update_type: 'semver:minor'
