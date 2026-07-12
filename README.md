@@ -105,6 +105,10 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
+
+### **WORK IN PROGRESS**
+- (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
+
 ### 0.2.4 (2026-07-03)
 - (Alan Paris) Remove unused username/password settings — the ACM200 telnet interface requires no login
 - (Alan Paris) Transmitter/receiver name states are now read-only (they are reported by the device and cannot be set from the adapter)
