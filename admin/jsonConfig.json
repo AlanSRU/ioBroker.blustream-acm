@@ -17,11 +17,29 @@
                     "lg": 12,
                     "xl": 12
                 },
+                "model": {
+                    "type": "select",
+                    "label": "Controller Model",
+                    "help": "Select the connected Blustream ACM controller model. This determines which commands and states are available.",
+                    "default": "ACM200",
+                    "newLine": true,
+                    "options": [
+                        { "label": "ACM200", "value": "ACM200" },
+                        { "label": "ACM210", "value": "ACM210" },
+                        { "label": "ACM500", "value": "ACM500" },
+                        { "label": "ACM1000", "value": "ACM1000" }
+                    ],
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 6,
+                    "xl": 6
+                },
                 "host": {
                     "type": "text",
                     "label": "IP Address",
                     "placeholder": "192.168.0.225",
-                    "help": "IP address of the ACM200 controller",
+                    "help": "IP address of the ACM controller",
                     "newLine": true,
                     "xs": 12,
                     "sm": 12,
@@ -78,7 +96,7 @@
                     "min": 500,
                     "max": 60000,
                     "step": 100,
-                    "help": "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.",
+                    "help": "Timeout for commands sent to the ACM controller (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.",
                     "xs": 12,
                     "sm": 12,
                     "md": 6,

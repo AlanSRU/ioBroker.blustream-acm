@@ -3,17 +3,14 @@
     "Advanced Settings": "Configuración avanzada",
     "Command Timeout (ms)": "Tiempo de espera del comando (ms)",
     "Connection Settings": "Configuración de conexión",
+    "Controller Model": "Modelo de controlador",
     "Default Telnet port: 23": "Puerto Telnet predeterminado: 23",
-    "Default: 1234": "Predeterminado: 1234",
-    "Default: admin": "Predeterminado: administrador",
     "How often to poll for status updates (default: 30000 ms)": "Con qué frecuencia sondear las actualizaciones de estado (predeterminado: 30000 ms)",
     "IP Address": "Dirección IP",
-    "IP address of the ACM200 controller": "Dirección IP del controlador ACM200",
+    "IP address of the ACM controller": "Dirección IP del controlador ACM",
     "Main settings": "Configuraciones principales",
-    "Password": "Contraseña",
     "Polling Interval (ms)": "Intervalo de sondeo (ms)",
     "Port": "Puerto",
-    "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "Tiempo de espera para los comandos enviados al ACM200 (predeterminado: 5000 ms). Los intervalos de sondeo más cortos brindan actualizaciones más frecuentes pero aumentan el tráfico de la red.",
-    "Username": "Nombre de usuario",
-    "admin": "administración"
+    "Select the connected Blustream ACM controller model. This determines which commands and states are available.": "Seleccione el modelo de controlador Blustream ACM conectado. Esto determina qué comandos y estados están disponibles.",
+    "Timeout for commands sent to the ACM controller (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "Tiempo de espera para los comandos enviados al controlador ACM (predeterminado: 5000 ms). Los intervalos de sondeo más cortos brindan actualizaciones más frecuentes pero aumentan el tráfico de la red."
 }

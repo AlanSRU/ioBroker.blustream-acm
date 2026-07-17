@@ -39,3 +39,6 @@ iobroker-data/
 
 # Local development notes (not part of the repo)
 CLAUDE.md
+
+# Vendor API references (local only)
+docs/

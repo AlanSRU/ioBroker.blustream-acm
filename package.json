@@ -1,7 +1,7 @@
 {
-  "name": "iobroker.blustream-acm200",
-  "version": "0.2.4",
-  "description": "Controls Blustream ACM200 matrix switches for audio/video distribution over IP",
+  "name": "iobroker.blustream-acm",
+  "version": "0.3.0",
+  "description": "Controls Blustream ACM matrix controllers (ACM200/ACM210/ACM500/ACM1000) for audio/video distribution over IP",
   "author": {
     "name": "Alan Paris",
     "email": "alan.paris@scottish.rugby"
@@ -12,12 +12,16 @@
       "email": "alan.paris@scottish.rugby"
     }
   ],
-  "homepage": "https://github.com/AlanSRU/ioBroker.blustream-acm200",
+  "homepage": "https://github.com/AlanSRU/ioBroker.blustream-acm",
   "license": "MIT",
   "keywords": [
     "ioBroker",
     "blustream",
+    "acm",
     "acm200",
+    "acm210",
+    "acm500",
+    "acm1000",
     "matrix",
     "video",
     "audio",
@@ -29,10 +33,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/AlanSRU/ioBroker.blustream-acm200.git"
+    "url": "https://github.com/AlanSRU/ioBroker.blustream-acm.git"
   },
   "bugs": {
-    "url": "https://github.com/AlanSRU/ioBroker.blustream-acm200/issues"
+    "url": "https://github.com/AlanSRU/ioBroker.blustream-acm/issues"
   },
   "engines": {
     "node": ">=22"
@@ -52,6 +56,7 @@
   "main": "main.js",
   "files": [
     "admin/",
+    "lib/",
     "io-package.json",
     "LICENSE",
     "main.js"

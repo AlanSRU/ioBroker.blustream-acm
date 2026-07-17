@@ -3,17 +3,14 @@
     "Advanced Settings": "高级设置",
     "Command Timeout (ms)": "命令超时（毫秒）",
     "Connection Settings": "连接设置",
+    "Controller Model": "控制器型号",
     "Default Telnet port: 23": "默认 Telnet 端口：23",
-    "Default: 1234": "默认值：1234",
-    "Default: admin": "默认：管理员",
     "How often to poll for status updates (default: 30000 ms)": "轮询状态更新的频率（默认值：30000 毫秒）",
     "IP Address": "IP地址",
-    "IP address of the ACM200 controller": "ACM200控制器的IP地址",
+    "IP address of the ACM controller": "ACM控制器的IP地址",
     "Main settings": "主要设置",
-    "Password": "密码",
     "Polling Interval (ms)": "轮询间隔（毫秒）",
     "Port": "港口",
-    "Timeout for commands sent to the ACM200 (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "发送到 ACM200 的命令超时（默认值：5000 毫秒）。轮询间隔越短，更新越频繁，但会增加网络流量。",
-    "Username": "用户名",
-    "admin": "行政"
+    "Select the connected Blustream ACM controller model. This determines which commands and states are available.": "选择连接的 Blustream ACM 控制器型号。这决定了哪些命令和状态可用。",
+    "Timeout for commands sent to the ACM controller (default: 5000 ms). Shorter polling intervals give more frequent updates but increase network traffic.": "发送到 ACM 控制器的命令超时（默认值：5000 毫秒）。轮询间隔越短，更新越频繁，但会增加网络流量。"
 }

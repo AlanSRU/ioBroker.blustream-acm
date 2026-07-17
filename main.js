@@ -1,6 +1,7 @@
 /**
- * ioBroker Blustream ACM200 Adapter
- * Controls Blustream ACM200 matrix switches for audio/video distribution over IP
+ * ioBroker Blustream ACM Adapter
+ * Controls Blustream ACM matrix controllers (ACM200/ACM210/ACM500/ACM1000)
+ * for audio/video distribution over IP
  *
  * File: main.js - Main adapter file
  */
@@ -9,12 +10,34 @@
 
 const utils = require('@iobroker/adapter-core');
 const net = require('node:net');
+const {
+    resolveModel,
+    DEFAULT_MODEL,
+    MODELS,
+    AUDIO_OUTPUT_MODES,
+    AUDIO_INPUT_MODES,
+    ARC_MODES,
+} = require('./lib/models');
 
-class BlustreamAcm200 extends utils.Adapter {
+/**
+ * Device-response banner markers. Matched model-agnostically so the same parser
+ * works across ACM200/210/500/1000, whose banners carry different model numbers
+ * and (on some models) drop the "IP Control Box" prefix — e.g. both
+ * "IP Control Box ACM200 Status Info" and "ACM210 Status Info" must match.
+ * NOTE: the field layout inside each block is assumed to match the ACM200; this
+ * needs verifying against a real STATUS/detail dump from a non-200 controller.
+ */
+const BANNER = {
+    input: /ACM\d+ Input Info/,
+    output: /ACM\d+ Output Info/,
+    status: /ACM\d+ Status Info/,
+};
+
+class BlustreamAcm extends utils.Adapter {
     constructor(options) {
         super({
             ...options,
-            name: 'blustream-acm200',
+            name: 'blustream-acm',
         });
 
         this.on('ready', this.onReady.bind(this));
@@ -22,7 +45,9 @@ class BlustreamAcm200 extends utils.Adapter {
         this.on('unload', this.onUnload.bind(this));
 
         // Default settings
-        this.host = '192.168.0.225'; // Default IP for ACM200
+        this.model = DEFAULT_MODEL; // Controller model; overridden from config in onReady
+        this.modelDef = MODELS[DEFAULT_MODEL]; // Capability/command definition for the model
+        this.host = '192.168.0.225'; // Default IP for the ACM controller
         this.port = 23; // Default Telnet port
         this.pollInterval = 30000; // Poll every 30 seconds
 
@@ -87,6 +112,23 @@ class BlustreamAcm200 extends utils.Adapter {
     }
 
     /**
+     * Validate and normalise a device ID parsed from a telnet response before it
+     * is used to build object IDs. Blustream device IDs are numeric; anything
+     * else is rejected so untrusted response data can never inject forbidden
+     * characters into the object tree.
+     *
+     * @param {string} raw - Raw ID token from a parsed response line
+     * @returns {string|null} zero-padded 3-digit id, or null if not a valid id
+     */
+    sanitizeDeviceId(raw) {
+        const trimmed = String(raw == null ? '' : raw).trim();
+        if (!/^\d+$/.test(trimmed)) {
+            return null;
+        }
+        return trimmed.padStart(3, '0');
+    }
+
+    /**
      * Initialize the adapter
      */
     async onReady() {
@@ -99,6 +141,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'button',
                 read: false,
                 write: true,
+                def: false,
                 desc: 'Perform a full refresh of all transmitter and receiver details',
             },
             native: {},
@@ -112,6 +155,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'date',
                 read: true,
                 write: false,
+                def: '',
                 desc: 'Timestamp of the last full device details refresh',
             },
             native: {},
@@ -125,6 +169,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'indicator',
                 read: true,
                 write: false,
+                def: false,
                 desc: 'Indicates if a full refresh is currently in progress',
             },
             native: {},
@@ -138,6 +183,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'date',
                 read: true,
                 write: false,
+                def: '',
                 desc: 'Timestamp of the next scheduled full refresh',
             },
             native: {},
@@ -145,6 +191,15 @@ class BlustreamAcm200 extends utils.Adapter {
 
         // Reset the connection indicator at startup
         this.setState('info.connection', false, true);
+
+        // Resolve the controller model from config (falls back to the default)
+        const resolved = resolveModel(this.config.model);
+        if (!resolved.valid) {
+            this.log.warn(`Unknown or missing controller model "${this.config.model}"; falling back to ${resolved.id}`);
+        }
+        this.model = resolved.id;
+        this.modelDef = resolved.def;
+        this.log.info(`Controller model: ${this.modelDef.label}`);
 
         // Get configuration from admin settings (validated & clamped to safe ranges)
         this.host = this.config.host || this.host;
@@ -164,7 +219,7 @@ class BlustreamAcm200 extends utils.Adapter {
         await this.setObjectNotExistsAsync('system', {
             type: 'device',
             common: {
-                name: 'Blustream ACM200 System',
+                name: 'Blustream ACM System',
             },
             native: {},
         });
@@ -194,6 +249,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'indicator.connected',
                 read: true,
                 write: false,
+                def: false,
             },
             native: {},
         });
@@ -206,6 +262,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'date',
                 read: true,
                 write: false,
+                def: '',
             },
             native: {},
         });
@@ -218,6 +275,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'button',
                 read: false,
                 write: true,
+                def: false,
             },
             native: {},
         });
@@ -231,6 +289,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
+                def: '',
                 desc: 'Write a transmitter ID to route audio+video to all displays',
             },
             native: {},
@@ -244,6 +303,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
+                def: '',
                 desc: 'Write a transmitter ID to route video only to all displays',
             },
             native: {},
@@ -257,6 +317,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 role: 'text',
                 read: true,
                 write: true,
+                def: '',
                 desc: 'Write a transmitter ID to route audio only to all displays',
             },
             native: {},
@@ -288,9 +349,22 @@ class BlustreamAcm200 extends utils.Adapter {
         this.subscribeStates('receivers.*.route');
         this.subscribeStates('receivers.*.videoRoute');
         this.subscribeStates('receivers.*.audioRoute');
+        this.subscribeStates('receivers.*.irRoute');
+        this.subscribeStates('receivers.*.rs232Route');
+        this.subscribeStates('receivers.*.usbRoute');
+        this.subscribeStates('receivers.*.cecRoute');
+        this.subscribeStates('receivers.*.power');
+        this.subscribeStates('receivers.*.mute');
+        this.subscribeStates('receivers.*.audioOutputMode');
+        this.subscribeStates('receivers.*.arcMode');
         this.subscribeStates('transmitters.*.audioSource');
+        this.subscribeStates('transmitters.*.audioMatrixMode');
 
-        // Start connection to ACM200 - Use new socket-based connection
+        // Remove any states left over from a previous model that the current
+        // model does not support (setObjectNotExists never deletes objects).
+        await this.reconcileModelStates();
+
+        // Start connection to the controller - Use new socket-based connection
         this.connectToACM();
 
         // Setup scheduled refresh
@@ -353,37 +427,88 @@ class BlustreamAcm200 extends utils.Adapter {
                 return;
             }
 
-            // Handle routing changes
+            // Handle receiver control changes
             if (id.startsWith(`${this.namespace}.receivers.`)) {
                 const localId = id.slice(this.namespace.length + 1); // e.g. 'receivers.001.route'
                 const parts = localId.split('.');
                 const receiverId = parts[1];
                 const stateName = parts[2];
-                const transmitterId = state.val;
 
-                if (receiverId && transmitterId) {
-                    if (stateName === 'route') {
-                        this.log.info(`Routing transmitter ${transmitterId} (audio+video) to receiver ${receiverId}`);
-                        this.routeVideo(transmitterId, receiverId);
-                    } else if (stateName === 'videoRoute') {
-                        this.log.info(`Routing video from transmitter ${transmitterId} to receiver ${receiverId}`);
-                        this.routeVideoOnly(transmitterId, receiverId);
-                    } else if (stateName === 'audioRoute') {
-                        this.log.info(`Routing audio from transmitter ${transmitterId} to receiver ${receiverId}`);
-                        this.routeAudioOnly(transmitterId, receiverId);
+                if (receiverId) {
+                    const src = state.val ? String(state.val) : '';
+                    switch (stateName) {
+                        // Routing states carry the source transmitter id; an empty write is ignored.
+                        case 'route':
+                            if (src) {
+                                this.routeVideo(src, receiverId);
+                            }
+                            break;
+                        case 'videoRoute':
+                            if (src) {
+                                this.routeVideoOnly(src, receiverId);
+                            }
+                            break;
+                        case 'audioRoute':
+                            if (src) {
+                                this.routeAudioOnly(src, receiverId);
+                            }
+                            break;
+                        case 'irRoute':
+                            if (src) {
+                                this.routeBreakaway('ir', src, receiverId);
+                            }
+                            break;
+                        case 'rs232Route':
+                            if (src) {
+                                this.routeBreakaway('rs232', src, receiverId);
+                            }
+                            break;
+                        case 'usbRoute':
+                            if (src) {
+                                this.routeBreakaway('usb', src, receiverId);
+                            }
+                            break;
+                        case 'cecRoute':
+                            if (src) {
+                                this.routeBreakaway('cec', src, receiverId);
+                            }
+                            break;
+                        // Boolean control states (false is a valid value, so no src guard).
+                        case 'power':
+                            this.setOutputPower(receiverId, !!state.val);
+                            break;
+                        case 'mute':
+                            this.setOutputMute(receiverId, !!state.val);
+                            break;
+                        // Tier 3 — audio matrix / ARC selectors (carry a mode token).
+                        case 'audioOutputMode':
+                            if (src) {
+                                this.setAudioOutputMode(receiverId, src);
+                            }
+                            break;
+                        case 'arcMode':
+                            if (src) {
+                                this.setArcMode(receiverId, src);
+                            }
+                            break;
                     }
                 }
             }
 
-            // Handle transmitter audio source changes
-            if (id.startsWith(`${this.namespace}.transmitters.`) && id.endsWith('.audioSource')) {
+            // Handle transmitter control changes
+            if (id.startsWith(`${this.namespace}.transmitters.`)) {
                 const localId = id.slice(this.namespace.length + 1);
-                const txId = localId.split('.')[1];
-                const audioSource = state.val;
+                const parts = localId.split('.');
+                const txId = parts[1];
+                const stateName = parts[2];
+                const val = state.val ? String(state.val) : '';
 
-                if (txId && audioSource) {
-                    this.log.info(`Setting transmitter ${txId} audio source to ${audioSource}`);
-                    this.setTransmitterAudioSource(txId, audioSource);
+                if (txId && val) {
+                    if (stateName === 'audioSource') {
+                        this.setTransmitterAudioSource(txId, val);
+                    } else if (stateName === 'audioMatrixMode') {
+                        this.setAudioInputMode(txId, val);
+                    }
                 }
             }
         }
@@ -454,7 +579,7 @@ class BlustreamAcm200 extends utils.Adapter {
         }
 
         this.connectionInProgress = true;
-        this.log.info(`Connecting to ACM200 at ${this.host}:${this.port}`);
+        this.log.info(`Connecting to ${this.modelDef.label} at ${this.host}:${this.port}`);
         this.log.info(`Using socket timeout: ${this.timeout}ms`);
 
         // Clear any existing connection and timers
@@ -474,7 +599,7 @@ class BlustreamAcm200 extends utils.Adapter {
 
             // Add more detailed handlers
             this.socket.on('connect', () => {
-                this.log.info('Socket connected to ACM200');
+                this.log.info(`Socket connected to ${this.modelDef.label}`);
                 this.log.debug(`Socket timeout is set to ${this.timeout}ms`);
                 this.handleConnect();
             });
@@ -517,7 +642,7 @@ class BlustreamAcm200 extends utils.Adapter {
      * Handle socket connection event
      */
     handleConnect() {
-        this.log.info('Socket connected to ACM200');
+        this.log.info(`Socket connected to ${this.modelDef.label}`);
 
         // Wait longer before sending test command
         this.setTimeout(() => {
@@ -532,6 +657,7 @@ class BlustreamAcm200 extends utils.Adapter {
                     this.connected = true;
                     this.connectionInProgress = false;
                     this.setState('info.connection', true, true);
+                    this.setState('system.status.connected', true, true);
 
                     // Disable socket timeout — heartbeat handles liveness detection
                     if (this.socket) {
@@ -822,7 +948,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 this.log.debug(`End of transmitter info detected, buffer size: ${this.txInfoBuffer.length} bytes`);
 
                 // Make sure the buffer contains transmitter info
-                if (this.txInfoBuffer.includes('IP Control Box ACM200 Input Info')) {
+                if (BANNER.input.test(this.txInfoBuffer)) {
                     // Process the complete transmitter info
                     try {
                         this.processTransmitterInfo(this.txInfoBuffer);
@@ -855,7 +981,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 this.log.debug(`End of receiver info detected, buffer size: ${this.rxInfoBuffer.length} bytes`);
 
                 // Make sure the buffer contains receiver info
-                if (this.rxInfoBuffer.includes('IP Control Box ACM200 Output Info')) {
+                if (BANNER.output.test(this.rxInfoBuffer)) {
                     // Process the complete receiver info
                     try {
                         this.processReceiverInfo(this.rxInfoBuffer);
@@ -875,7 +1001,7 @@ class BlustreamAcm200 extends utils.Adapter {
         }
 
         // Check if this is the start of a transmitter info response
-        if (line.includes('IP Control Box ACM200 Input Info')) {
+        if (BANNER.input.test(line)) {
             this.log.debug('Starting to collect transmitter info');
             this.collectingTxInfo = true;
             this.txInfoBuffer = `${line}\n`;
@@ -883,7 +1009,7 @@ class BlustreamAcm200 extends utils.Adapter {
         }
 
         // Check if this is the start of a receiver info response
-        if (line.includes('IP Control Box ACM200 Output Info')) {
+        if (BANNER.output.test(line)) {
             this.log.debug('Starting to collect receiver info');
             this.collectingRxInfo = true;
             this.rxInfoBuffer = `${line}\n`;
@@ -902,7 +1028,7 @@ class BlustreamAcm200 extends utils.Adapter {
             if (
                 line.includes('=================') ||
                 line.includes('================================================================') ||
-                line.includes('ACM200 Status Info')
+                BANNER.status.test(line)
             ) {
                 commandComplete = true;
             } else if (
@@ -927,7 +1053,7 @@ class BlustreamAcm200 extends utils.Adapter {
         }
 
         // Now process the line for status data extraction
-        if (line.includes('IP Control Box ACM200 Status Info')) {
+        if (BANNER.status.test(line)) {
             // Begin collecting status info
             this.statusBuffer = `${line}\n`;
             this.collectingStatus = true;
@@ -959,6 +1085,7 @@ class BlustreamAcm200 extends utils.Adapter {
         this.connected = false;
         this.processingCommand = false;
         this.setState('info.connection', false, true);
+        this.setState('system.status.connected', false, true);
 
         // Clear all timers
         if (this.heartbeatTimer) {
@@ -1291,9 +1418,7 @@ class BlustreamAcm200 extends utils.Adapter {
         }
 
         // Single FR command routes both video and audio together.
-        const rxPad = rxId.padStart(3, '0');
-        const txPad = txId.padStart(3, '0');
-        const command = `OUT${rxPad}FR${txPad}`;
+        const command = this.modelDef.commands.routeVideoAudio(rxId, txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -1317,7 +1442,7 @@ class BlustreamAcm200 extends utils.Adapter {
                     const sourceIp = this.transmitterStates[txId].ip;
                     if (sourceIp) {
                         const timestamp = Date.now();
-                        const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                        const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
                         this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
                     }
                 }
@@ -1339,7 +1464,7 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        const command = `OUT${rxId.padStart(3, '0')}VFR${txId.padStart(3, '0')}`;
+        const command = this.modelDef.commands.routeVideo(rxId, txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -1354,7 +1479,7 @@ class BlustreamAcm200 extends utils.Adapter {
                     const sourceIp = this.transmitterStates[txId].ip;
                     if (sourceIp) {
                         const timestamp = Date.now();
-                        const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                        const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
                         this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
                     }
                 }
@@ -1376,7 +1501,7 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        const command = `OUT${rxId.padStart(3, '0')}AFR${txId.padStart(3, '0')}`;
+        const command = this.modelDef.commands.routeAudio(rxId, txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -1389,6 +1514,103 @@ class BlustreamAcm200 extends utils.Adapter {
             })
             .catch(err => {
                 this.log.error(`Error routing audio only: ${err.message}`);
+            });
+    }
+
+    /**
+     * Route a breakaway stream (IR / RS232 / USB / CEC) from a transmitter to a
+     * receiver. Only available on models whose capability table defines the
+     * matching command (see lib/models.js).
+     *
+     * @param {'ir'|'rs232'|'usb'|'cec'} kind - Breakaway stream kind
+     * @param {string} txId - Transmitter ID (source)
+     * @param {string} rxId - Receiver ID (destination)
+     */
+    routeBreakaway(kind, txId, rxId) {
+        const map = {
+            ir: { feature: 'routeIR', build: 'routeIR', state: 'irRoute', label: 'IR' },
+            rs232: { feature: 'routeRS232', build: 'routeRS232', state: 'rs232Route', label: 'RS232' },
+            usb: { feature: 'routeUSB', build: 'routeUSB', state: 'usbRoute', label: 'USB' },
+            cec: { feature: 'routeCEC', build: 'routeCEC', state: 'cecRoute', label: 'CEC' },
+        };
+        const def = map[kind];
+        if (!def) {
+            return;
+        }
+        if (!this.connected) {
+            this.log.warn(`Cannot route ${def.label}, not connected`);
+            return;
+        }
+        if (!this.modelDef.features[def.feature]) {
+            this.log.warn(`${def.label} routing is not supported on ${this.modelDef.label}`);
+            return;
+        }
+
+        const command = this.modelDef.commands[def.build](rxId, txId);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Successfully routed ${def.label} from TX ${txId} to RX ${rxId}`);
+                this.setState(`receivers.${rxId}.${def.state}`, txId, true);
+            })
+            .catch(err => {
+                this.log.error(`Error routing ${def.label}: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set a receiver's output power on/off. Model-gated (features.outputPower).
+     *
+     * @param {string} rxId - Receiver ID
+     * @param {boolean} on - true = power on, false = power off
+     */
+    setOutputPower(rxId, on) {
+        if (!this.connected) {
+            this.log.warn('Cannot set output power, not connected');
+            return;
+        }
+        if (!this.modelDef.features.outputPower) {
+            this.log.warn(`Output power control is not supported on ${this.modelDef.label}`);
+            return;
+        }
+
+        const command = this.modelDef.commands.outputPower(rxId, on);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Set receiver ${rxId} power ${on ? 'ON' : 'OFF'}`);
+                this.setState(`receivers.${rxId}.power`, on, true);
+            })
+            .catch(err => {
+                this.log.error(`Error setting output power: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set a receiver's output mute on/off. Model-gated (features.outputMute).
+     *
+     * @param {string} rxId - Receiver ID
+     * @param {boolean} on - true = muted, false = unmuted
+     */
+    setOutputMute(rxId, on) {
+        if (!this.connected) {
+            this.log.warn('Cannot set output mute, not connected');
+            return;
+        }
+        if (!this.modelDef.features.outputMute) {
+            this.log.warn(`Output mute control is not supported on ${this.modelDef.label}`);
+            return;
+        }
+
+        const command = this.modelDef.commands.outputMute(rxId, on);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Set receiver ${rxId} mute ${on ? 'ON' : 'OFF'}`);
+                this.setState(`receivers.${rxId}.mute`, on, true);
+            })
+            .catch(err => {
+                this.log.error(`Error setting output mute: ${err.message}`);
             });
     }
 
@@ -1412,7 +1634,7 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        const command = `IN${txId.padStart(3, '0')} AUD ${upperSource}`;
+        const command = this.modelDef.commands.setAudioSource(txId, upperSource);
 
         this.executeCommand(command)
             .then(() => {
@@ -1425,6 +1647,111 @@ class BlustreamAcm200 extends utils.Adapter {
             })
             .catch(err => {
                 this.log.error(`Error setting audio source: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set a receiver's output-side audio matrix path (`OUT ooo AUDxx`).
+     * Model-gated (features.audioMatrix).
+     *
+     * @param {string} rxId - Receiver ID
+     * @param {string} mode - Audio path token (key of AUDIO_OUTPUT_MODES)
+     */
+    setAudioOutputMode(rxId, mode) {
+        if (!this.connected) {
+            this.log.warn('Cannot set audio output path, not connected');
+            return;
+        }
+        if (!this.modelDef.features.audioMatrix) {
+            this.log.warn(`Audio matrix is not supported on ${this.modelDef.label}`);
+            return;
+        }
+        const upperMode = String(mode).toUpperCase();
+        if (!AUDIO_OUTPUT_MODES[upperMode]) {
+            this.log.error(
+                `Invalid audio output path "${mode}". Must be one of: ${Object.keys(AUDIO_OUTPUT_MODES).join(', ')}`,
+            );
+            return;
+        }
+
+        const command = this.modelDef.commands.audioOutput(rxId, upperMode);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Set receiver ${rxId} audio output path to ${upperMode}`);
+                this.setState(`receivers.${rxId}.audioOutputMode`, upperMode, true);
+            })
+            .catch(err => {
+                this.log.error(`Error setting audio output path: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set a receiver's ARC mode (`OUT ooo ARC xxx`). Model-gated (features.arc).
+     *
+     * @param {string} rxId - Receiver ID
+     * @param {string} mode - ARC mode token (key of ARC_MODES)
+     */
+    setArcMode(rxId, mode) {
+        if (!this.connected) {
+            this.log.warn('Cannot set ARC mode, not connected');
+            return;
+        }
+        if (!this.modelDef.features.arc) {
+            this.log.warn(`ARC is not supported on ${this.modelDef.label}`);
+            return;
+        }
+        const upperMode = String(mode).toUpperCase();
+        if (!ARC_MODES[upperMode]) {
+            this.log.error(`Invalid ARC mode "${mode}". Must be one of: ${Object.keys(ARC_MODES).join(', ')}`);
+            return;
+        }
+
+        const command = this.modelDef.commands.arc(rxId, upperMode);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Set receiver ${rxId} ARC mode to ${upperMode}`);
+                this.setState(`receivers.${rxId}.arcMode`, upperMode, true);
+            })
+            .catch(err => {
+                this.log.error(`Error setting ARC mode: ${err.message}`);
+            });
+    }
+
+    /**
+     * Set a transmitter's input-side audio matrix path (`IN iii AUDxx`).
+     * Model-gated (features.audioMatrix).
+     *
+     * @param {string} txId - Transmitter ID
+     * @param {string} mode - Audio path token (key of AUDIO_INPUT_MODES)
+     */
+    setAudioInputMode(txId, mode) {
+        if (!this.connected) {
+            this.log.warn('Cannot set audio matrix path, not connected');
+            return;
+        }
+        if (!this.modelDef.features.audioMatrix) {
+            this.log.warn(`Audio matrix is not supported on ${this.modelDef.label}`);
+            return;
+        }
+        const upperMode = String(mode).toUpperCase();
+        if (!AUDIO_INPUT_MODES[upperMode]) {
+            this.log.error(
+                `Invalid audio matrix path "${mode}". Must be one of: ${Object.keys(AUDIO_INPUT_MODES).join(', ')}`,
+            );
+            return;
+        }
+
+        const command = this.modelDef.commands.audioInput(txId, upperMode);
+
+        this.executeCommand(command)
+            .then(() => {
+                this.log.info(`Set transmitter ${txId} audio matrix path to ${upperMode}`);
+                this.setState(`transmitters.${txId}.audioMatrixMode`, upperMode, true);
+            })
+            .catch(err => {
+                this.log.error(`Error setting audio matrix path: ${err.message}`);
             });
     }
 
@@ -1493,12 +1820,12 @@ class BlustreamAcm200 extends utils.Adapter {
             const txChannels = await this.getChannelsOfAsync('transmitters');
             if (txChannels) {
                 for (const obj of txChannels) {
-                    // obj._id is e.g. "blustream-acm200.0.transmitters.007"
+                    // obj._id is e.g. "blustream-acm.0.transmitters.007"
                     const idParts = obj._id.split('.');
                     const deviceId = idParts[idParts.length - 1];
 
                     if (!this.transmitterStates[deviceId]) {
-                        this.log.info(`Removing stale transmitter ${deviceId} (no longer reported by ACM200)`);
+                        this.log.info(`Removing stale transmitter ${deviceId} (no longer reported by controller)`);
                         await this.deleteChannelAsync('transmitters', deviceId);
                     }
                 }
@@ -1516,7 +1843,7 @@ class BlustreamAcm200 extends utils.Adapter {
                     const deviceId = idParts[idParts.length - 1];
 
                     if (!this.receiverStates[deviceId]) {
-                        this.log.info(`Removing stale receiver ${deviceId} (no longer reported by ACM200)`);
+                        this.log.info(`Removing stale receiver ${deviceId} (no longer reported by controller)`);
                         await this.deleteChannelAsync('receivers', deviceId);
                     }
                 }
@@ -1774,7 +2101,11 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        const id = parts[0].padStart(3, '0');
+        const id = this.sanitizeDeviceId(parts[0]);
+        if (!id) {
+            this.log.warn(`Ignoring transmitter info with invalid ID "${parts[0]}"`);
+            return;
+        }
         const netStatus = parts[1] === 'On';
         const sigStatus = parts[2] === 'On';
         const version = parts[3];
@@ -1875,6 +2206,16 @@ class BlustreamAcm200 extends utils.Adapter {
                 write: true,
                 states: { AUTO: 'Auto', HDMI: 'HDMI', ANA: 'Analogue L/R' },
             },
+            // Tier 3 — audio matrix (input side)
+            {
+                id: 'audioMatrixMode',
+                name: 'Audio Matrix Path',
+                type: 'string',
+                role: 'text',
+                write: true,
+                feature: 'audioMatrix',
+                states: AUDIO_INPUT_MODES,
+            },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
             { id: 'mac', name: 'MAC Address', type: 'string', role: 'info.mac' },
             { id: 'model', name: 'Product Model', type: 'string', role: 'info.model' },
@@ -1882,12 +2223,16 @@ class BlustreamAcm200 extends utils.Adapter {
         ];
 
         for (const state of states) {
+            if (state.feature && !this.modelDef.features[state.feature]) {
+                continue;
+            }
             const common = {
                 name: state.name,
                 type: state.type,
                 role: state.role,
                 read: true,
                 write: state.write || false,
+                def: state.type === 'boolean' ? false : state.type === 'number' ? 0 : '',
             };
             if (state.states) {
                 common.states = state.states;
@@ -1901,10 +2246,58 @@ class BlustreamAcm200 extends utils.Adapter {
     }
 
     /**
-     * Process receiver information
+     * Remove feature-gated states that the currently-configured model does not
+     * support. Needed because `setObjectNotExists` never deletes objects, so a
+     * model change (e.g. ACM1000 → ACM500 or → ACM200) would otherwise leave
+     * orphaned states behind.
      *
-     * @param {string} data - Receiver data
+     * The maps below must stay in exact sync with the feature-gated entries in
+     * `ensureReceiverObjects` / `ensureTransmitterObjects` — every listed leaf is
+     * a state the adapter actually creates, and its value is the feature flag
+     * that guards it.
+     *
+     * @returns {Promise<void>} resolves once pruning is complete
      */
+    async reconcileModelStates() {
+        const feat = this.modelDef.features;
+        const gated = {
+            receivers: {
+                irRoute: 'routeIR',
+                rs232Route: 'routeRS232',
+                usbRoute: 'routeUSB',
+                cecRoute: 'routeCEC',
+                power: 'outputPower',
+                mute: 'outputMute',
+                audioOutputMode: 'audioMatrix',
+                arcMode: 'arc',
+            },
+            transmitters: {
+                audioMatrixMode: 'audioMatrix',
+            },
+        };
+
+        for (const [deviceType, leaves] of Object.entries(gated)) {
+            let objs;
+            try {
+                objs = await this.getForeignObjectsAsync(`${this.namespace}.${deviceType}.*`, 'state');
+            } catch (err) {
+                this.log.warn(`Could not enumerate ${deviceType} states for model reconciliation: ${err.message}`);
+                continue;
+            }
+            for (const fullId of Object.keys(objs)) {
+                const leaf = fullId.split('.').pop();
+                const feature = leaves[leaf];
+                if (feature && !feat[feature]) {
+                    try {
+                        await this.delForeignObjectAsync(fullId);
+                        this.log.info(`Removed state ${fullId}: not supported by model ${this.modelDef.label}`);
+                    } catch (err) {
+                        this.log.warn(`Could not remove state ${fullId}: ${err.message}`);
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Process receiver information
@@ -1915,7 +2308,7 @@ class BlustreamAcm200 extends utils.Adapter {
         this.log.info(`Processing receiver info data, length: ${data.length} bytes`);
 
         // Verify this is a receiver info response
-        if (!data.includes('IP Control Box ACM200 Output Info')) {
+        if (!BANNER.output.test(data)) {
             this.log.warn('Not a valid receiver info response');
             return;
         }
@@ -1964,7 +2357,11 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        const id = parts[0].padStart(3, '0');
+        const id = this.sanitizeDeviceId(parts[0]);
+        if (!id) {
+            this.log.warn(`Ignoring receiver info with invalid ID "${parts[0]}"`);
+            return;
+        }
         this.log.debug(`Found receiver ID: ${id}`);
 
         // Extract other fields if available
@@ -2086,7 +2483,7 @@ class BlustreamAcm200 extends utils.Adapter {
                 if (currentTx && this.transmitterStates[currentTx] && this.transmitterStates[currentTx].ip) {
                     const sourceIp = this.transmitterStates[currentTx].ip;
                     const timestamp = Date.now();
-                    const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
+                    const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
                     this.setState(`receivers.${id}.previewUrl`, previewUrl, true);
                 }
 
@@ -2120,7 +2517,8 @@ class BlustreamAcm200 extends utils.Adapter {
             native: {},
         });
 
-        // Create all states
+        // Create all states. Entries with a `feature` are only created when the
+        // active model supports that capability (see lib/models.js).
         const states = [
             { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
             { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name' },
@@ -2129,6 +2527,47 @@ class BlustreamAcm200 extends utils.Adapter {
             { id: 'route', name: 'Current Source', type: 'string', role: 'text', write: true },
             { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'text', write: true },
             { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'text', write: true },
+            // Tier 1 — breakaway routing (write the source TX id)
+            { id: 'irRoute', name: 'IR Source', type: 'string', role: 'text', write: true, feature: 'routeIR' },
+            {
+                id: 'rs232Route',
+                name: 'RS232 Source',
+                type: 'string',
+                role: 'text',
+                write: true,
+                feature: 'routeRS232',
+            },
+            { id: 'usbRoute', name: 'USB Source', type: 'string', role: 'text', write: true, feature: 'routeUSB' },
+            { id: 'cecRoute', name: 'CEC Source', type: 'string', role: 'text', write: true, feature: 'routeCEC' },
+            // Tier 2 — per-output control
+            {
+                id: 'power',
+                name: 'Output Power',
+                type: 'boolean',
+                role: 'switch.power',
+                write: true,
+                feature: 'outputPower',
+            },
+            { id: 'mute', name: 'Output Mute', type: 'boolean', role: 'switch', write: true, feature: 'outputMute' },
+            // Tier 3 — audio matrix + ARC (output side)
+            {
+                id: 'audioOutputMode',
+                name: 'Audio Output Path',
+                type: 'string',
+                role: 'text',
+                write: true,
+                feature: 'audioMatrix',
+                states: AUDIO_OUTPUT_MODES,
+            },
+            {
+                id: 'arcMode',
+                name: 'ARC Mode',
+                type: 'string',
+                role: 'text',
+                write: true,
+                feature: 'arc',
+                states: ARC_MODES,
+            },
             { id: 'resolution', name: 'Output Resolution', type: 'string', role: 'text' },
             { id: 'mode', name: 'Operation Mode', type: 'string', role: 'text' },
             { id: 'version', name: 'Firmware Version', type: 'string', role: 'info.firmware' },
@@ -2138,12 +2577,16 @@ class BlustreamAcm200 extends utils.Adapter {
         ];
 
         for (const state of states) {
+            if (state.feature && !this.modelDef.features[state.feature]) {
+                continue;
+            }
             const common = {
                 name: state.name,
                 type: state.type,
                 role: state.role,
                 read: true,
                 write: state.write || false,
+                def: state.type === 'boolean' ? false : state.type === 'number' ? 0 : '',
             };
             if (state.states) {
                 common.states = state.states;
@@ -2226,7 +2669,7 @@ class BlustreamAcm200 extends utils.Adapter {
 
         // Generate a preview URL - format as provided by user
         const timestamp = Date.now();
-        const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${ip}&capwidth=240?time=${timestamp}`;
+        const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${ip}&capwidth=240&time=${timestamp}`;
         await this.setState(`${txId}.previewUrl`, previewUrl, true);
 
         // Update our internal state
@@ -2323,7 +2766,7 @@ class BlustreamAcm200 extends utils.Adapter {
         // Generate a preview URL - only if we have a source IP
         if (sourceIp) {
             const timestamp = Date.now();
-            const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+            const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
             await this.setState(`${rxId}.previewUrl`, previewUrl, true);
         }
 
@@ -2351,9 +2794,8 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        // Single FR command routes both video and audio together to all outputs.
-        const txPad = txId.padStart(3, '0');
-        const command = `OUT000FR${txPad}`;
+        // Single FR command routes both video and audio together to all outputs (ooo=000).
+        const command = this.modelDef.commands.routeVideoAudio('000', txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -2377,7 +2819,7 @@ class BlustreamAcm200 extends utils.Adapter {
                     // Update preview URL if we have a source IP
                     if (sourceIp) {
                         const timestamp = Date.now();
-                        const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                        const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
                         this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
                     }
                 }
@@ -2398,8 +2840,8 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        // OUT 000 VFR yyy — ooo=000 selects all output ports per ACM200 protocol
-        const command = `OUT000VFR${txId.padStart(3, '0')}`;
+        // ooo=000 selects all output ports (video only)
+        const command = this.modelDef.commands.routeVideo('000', txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -2413,7 +2855,7 @@ class BlustreamAcm200 extends utils.Adapter {
                         const sourceIp = this.transmitterStates[txId].ip;
                         if (sourceIp) {
                             const timestamp = Date.now();
-                            const previewUrl = `http://192.168.230.5/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240?time=${timestamp}`;
+                            const previewUrl = `http://${this.host}/cgi-bin/capture.cgi?hostip=${sourceIp}&capwidth=240&time=${timestamp}`;
                             this.setState(`receivers.${rxId}.previewUrl`, previewUrl, true);
                         }
                     }
@@ -2435,8 +2877,8 @@ class BlustreamAcm200 extends utils.Adapter {
             return;
         }
 
-        // OUT 000 AFR yyy — ooo=000 selects all output ports per ACM200 protocol
-        const command = `OUT000AFR${txId.padStart(3, '0')}`;
+        // ooo=000 selects all output ports (audio only)
+        const command = this.modelDef.commands.routeAudio('000', txId);
 
         this.executeCommand(command)
             .then(() => {
@@ -2456,8 +2898,8 @@ class BlustreamAcm200 extends utils.Adapter {
 // @ts-expect-error parent is a valid property on module
 if (module.parent) {
     // Export the constructor in compact mode
-    module.exports = options => new BlustreamAcm200(options);
+    module.exports = options => new BlustreamAcm(options);
 } else {
     // otherwise start the instance directly
-    new BlustreamAcm200();
+    new BlustreamAcm();
 }

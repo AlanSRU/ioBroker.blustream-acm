@@ -1,21 +1,26 @@
-# ioBroker.blustream-acm200
+# ioBroker.blustream-acm
 
-[![NPM version](https://img.shields.io/npm/v/iobroker.blustream-acm200.svg)](https://www.npmjs.com/package/iobroker.blustream-acm200)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.blustream-acm200.svg)](https://www.npmjs.com/package/iobroker.blustream-acm200)
-![Number of Installations](https://iobroker.live/badges/blustream-acm200-installed.svg)
-![Current version in stable repository](https://iobroker.live/badges/blustream-acm200-stable.svg)
+[![NPM version](https://img.shields.io/npm/v/iobroker.blustream-acm.svg)](https://www.npmjs.com/package/iobroker.blustream-acm)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.blustream-acm.svg)](https://www.npmjs.com/package/iobroker.blustream-acm)
+![Number of Installations](https://iobroker.live/badges/blustream-acm-installed.svg)
+![Current version in stable repository](https://iobroker.live/badges/blustream-acm-stable.svg)
 
-[![NPM](https://nodei.co/npm/iobroker.blustream-acm200.png?downloads=true)](https://nodei.co/npm/iobroker.blustream-acm200/)
+[![NPM](https://nodei.co/npm/iobroker.blustream-acm.png?downloads=true)](https://nodei.co/npm/iobroker.blustream-acm/)
 
-**Tests:** ![Test and Release](https://github.com/AlanSRU/ioBroker.blustream-acm200/workflows/Test%20and%20Release/badge.svg)
+**Tests:** ![Test and Release](https://github.com/AlanSRU/ioBroker.blustream-acm/workflows/Test%20and%20Release/badge.svg)
 
-## Blustream ACM200 Matrix Controller for ioBroker
+## Blustream ACM Matrix Controller for ioBroker
 
-Controls a Blustream ACM200 matrix controller for HDMI-over-IP audio/video distribution. Discovers connected transmitters and receivers via the ACM200's telnet interface and exposes routing/status states for each.
+Controls Blustream ACM advanced control modules for HDMI-over-IP audio/video distribution. Discovers connected transmitters and receivers via the controller's telnet interface and exposes routing/status states for each. The available commands and states depend on the controller model, which you select in the adapter configuration.
+
+> **Renamed from `iobroker.blustream-acm200`.** This adapter now supports several ACM models, so it is no longer tied to the ACM200 name. Existing `blustream-acm200.0` installs must be reconfigured under the new `blustream-acm.0` namespace.
 
 ### Supported hardware
 
-- **Device:** [Blustream ACM200 Advanced Control & Management Appliance](https://www.blustream.com/product/acm200/)
+- **ACM200** — [Blustream ACM200](https://www.blustream.com/product/acm200/) (routing + transmitter audio source)
+- **ACM210** — routing, breakaway (IR/RS232/USB/CEC), output power/mute, Dante audio matrix + ARC
+- **ACM500** — routing, breakaway, output power/mute
+- **ACM1000** — routing, breakaway, output power/mute, Dante audio matrix + ARC
 - **Manufacturer:** [Blustream](https://www.blustream.com/)
 
 This adapter is not affiliated with or endorsed by Blustream; all trademarks belong to their respective owners.
@@ -23,11 +28,15 @@ This adapter is not affiliated with or endorsed by Blustream; all trademarks bel
 ## Features
 
 - Automatic discovery of connected transmitters and receivers
+- Model-aware capabilities — the adapter only creates states and accepts commands the selected model supports
 - Video/audio routing control (combined and independent per stream)
-- Transmitter audio source selection (AUTO / HDMI / ANA)
+- Breakaway routing of IR / RS232 / USB / CEC streams (ACM210/500/1000)
+- Output power and mute control (ACM210/500/1000)
+- Dante/analogue/HDMI audio matrix and ARC control (ACM210/1000)
+- Transmitter audio source selection (HDMI / ANA)
 - "Route to all displays" commands (audio+video, video only, audio only)
 - Status monitoring for all devices
-- Preview image support (requires separate preview service)
+- Preview image URLs (served by the controller's built-in capture endpoint)
 
 ## Installation
 
@@ -37,19 +46,22 @@ Install the adapter from the ioBroker admin interface (Adapters → search for "
 
 ### Main Settings
 
-- **IP Address**: IP address of your ACM200 controller (default: 192.168.0.225)
+- **Controller Model**: Select your ACM controller model (ACM200 / ACM210 / ACM500 / ACM1000). This determines which commands and states are available.
+- **IP Address**: IP address of your ACM controller (default: 192.168.0.225)
 - **Port**: Telnet port (default: 23)
 
 ### Advanced Settings
 
 - **Polling Interval (ms)**: How often to poll for status updates (default: 30000)
-- **Command Timeout (ms)**: Timeout for commands sent to the ACM200 (default: 5000)
+- **Command Timeout (ms)**: Timeout for commands sent to the controller (default: 5000)
 
 ## States
 
+States marked _(model)_ are only created when the selected controller model supports the capability.
+
 ### System
 
-- `info.connection` — Connection status to the ACM200
+- `info.connection` — Connection status to the controller
 - `system.status.connected` — Same as info.connection (legacy)
 - `system.status.lastUpdate` — Timestamp of the last status update
 - `system.commands.refresh` — Trigger a manual refresh of all status information
@@ -65,7 +77,8 @@ Install the adapter from the ioBroker admin interface (Adapters → search for "
 - `transmitters.<id>.ip` — IP address
 - `transmitters.<id>.connected` — Connection status
 - `transmitters.<id>.edid` — EDID setting
-- `transmitters.<id>.audioSource` — Audio source selection (AUTO/HDMI/ANA)
+- `transmitters.<id>.audioSource` — Audio source selection (HDMI/ANA)
+- `transmitters.<id>.audioMatrixMode` — _(ACM210/1000)_ Input-side audio matrix path (HDMI/Analogue/Dante)
 - `transmitters.<id>.previewUrl` — URL to preview image (if preview service is enabled)
 
 ### Receivers (per receiver)
@@ -77,6 +90,11 @@ Install the adapter from the ioBroker admin interface (Adapters → search for "
 - `receivers.<id>.route` — Combined audio+video route (write a transmitter ID)
 - `receivers.<id>.videoRoute` — Video-only route
 - `receivers.<id>.audioRoute` — Audio-only route
+- `receivers.<id>.irRoute` / `.rs232Route` / `.usbRoute` / `.cecRoute` — _(ACM210/500/1000)_ Breakaway routes (write a transmitter ID)
+- `receivers.<id>.power` — _(ACM210/500/1000)_ Output power on/off
+- `receivers.<id>.mute` — _(ACM210/500/1000)_ Output mute on/off
+- `receivers.<id>.audioOutputMode` — _(ACM210/1000)_ Output-side audio matrix path
+- `receivers.<id>.arcMode` — _(ACM210/1000)_ ARC mode (Off/HDMI/Optical)
 - `receivers.<id>.resolution` — Output resolution
 - `receivers.<id>.previewUrl` — URL to preview image
 
@@ -85,18 +103,19 @@ Install the adapter from the ioBroker admin interface (Adapters → search for "
 Route transmitter 2 to receiver 1:
 
 ```javascript
-setState('blustream-acm200.0.receivers.001.route', '002');
+setState('blustream-acm.0.receivers.001.route', '002');
 ```
 
 Route transmitter 3 to all receivers:
 
 ```javascript
-setState('blustream-acm200.0.system.commands.routeAll', '003');
+setState('blustream-acm.0.system.commands.routeAll', '003');
 ```
 
 ## Troubleshooting
 
-- If the adapter cannot connect, verify the IP address, port, and that the ACM200's telnet interface is enabled.
+- If the adapter cannot connect, verify the IP address, port, and that the controller's telnet interface is enabled.
+- Make sure the configured **Controller Model** matches your hardware — the wrong model may send commands your device does not understand or hide states it does support.
 - If transmitters or receivers are missing after start-up, trigger a refresh via `system.commands.refresh`.
 - Enable debug logging in Admin → instance → log level to see telnet traffic.
 
@@ -105,6 +124,15 @@ setState('blustream-acm200.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
+### __WORK IN PROGRESS__
+
+### 0.3.0 (2026-07-17)
+- (Alan Paris) Renamed adapter from `blustream-acm200` to `blustream-acm` to reflect multi-model support
+- (Alan Paris) Added a Controller Model setting (ACM200 / ACM210 / ACM500 / ACM1000); states and commands are now model-aware
+- (Alan Paris) Added breakaway routing (IR/RS232/USB/CEC) and output power/mute for ACM210/500/1000
+- (Alan Paris) Added Dante/analogue/HDMI audio matrix and ARC control for ACM210/1000
+- (Alan Paris) Preview image URLs now use the configured controller host instead of a hardcoded address
+
 ### 0.2.4 (2026-07-03)
 - (Alan Paris) Remove unused username/password settings — the ACM200 telnet interface requires no login
 - (Alan Paris) Transmitter/receiver name states are now read-only (they are reported by the device and cannot be set from the adapter)
