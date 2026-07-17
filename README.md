@@ -126,6 +126,10 @@ setState('blustream-acm.0.system.commands.routeAll', '003');
 -->
 ### __WORK IN PROGRESS__
 
+### 0.3.1 (2026-07-17)
+- (Alan Paris) Object role corrections for ioBroker repository review: per-device `connected` states now use `indicator.reachable`; transmitter/receiver `id` states use the `text` role
+- (Alan Paris) Remove a stale command-timeout comment
+
 ### 0.3.0 (2026-07-17)
 - (Alan Paris) Renamed adapter from `blustream-acm200` to `blustream-acm` to reflect multi-model support
 - (Alan Paris) Added a Controller Model setting (ACM200 / ACM210 / ACM500 / ACM1000); states and commands are now model-aware

@@ -70,7 +70,7 @@ class BlustreamAcm extends utils.Adapter {
         this.commandQueue = [];
         this.processingCommand = false;
 
-        this.timeout = 30000; // Increase to 30 seconds
+        this.timeout = 5000; // default command timeout (ms); overridden from config in onReady
         this.heartbeatInterval = 10000; // Reduce to 10 seconds
 
         this.collectingTxInfo = false;
@@ -2194,10 +2194,10 @@ class BlustreamAcm extends utils.Adapter {
 
         // Create all states
         const states = [
-            { id: 'id', name: 'Transmitter ID', type: 'string', role: 'info.name' },
+            { id: 'id', name: 'Transmitter ID', type: 'string', role: 'text' },
             { id: 'name', name: 'Transmitter Name', type: 'string', role: 'info.name' },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
+            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.reachable' },
             { id: 'edid', name: 'EDID Setting', type: 'string', role: 'text' },
             {
                 id: 'audioSource',
@@ -2521,10 +2521,10 @@ class BlustreamAcm extends utils.Adapter {
         // Create all states. Entries with a `feature` are only created when the
         // active model supports that capability (see lib/models.js).
         const states = [
-            { id: 'id', name: 'Receiver ID', type: 'string', role: 'info.name' },
+            { id: 'id', name: 'Receiver ID', type: 'string', role: 'text' },
             { id: 'name', name: 'Receiver Name', type: 'string', role: 'info.name' },
             { id: 'ip', name: 'IP Address', type: 'string', role: 'info.ip' },
-            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.connected' },
+            { id: 'connected', name: 'Connected', type: 'boolean', role: 'indicator.reachable' },
             { id: 'route', name: 'Current Source', type: 'string', role: 'text', write: true },
             { id: 'videoRoute', name: 'Video Source', type: 'string', role: 'text', write: true },
             { id: 'audioRoute', name: 'Audio Source', type: 'string', role: 'text', write: true },

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "blustream-acm",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "news": {
+      "0.3.1": {
+        "en": "Object role corrections for ioBroker repository review: per-device connected states use indicator.reachable; transmitter/receiver id states use the text role\nRemove a stale command-timeout comment",
+        "de": "Korrektur von Objektrollen für die ioBroker-Repository-Prüfung: gerätebezogene connected-Status verwenden indicator.reachable; die id-Status von Sendern/Empfängern verwenden die Rolle text\nEntfernen eines veralteten Kommentars zum Befehlstimeout",
+        "ru": "Исправление ролей объектов для проверки репозитория ioBroker: состояния connected отдельных устройств используют indicator.reachable; состояния id передатчиков/приемников используют роль text\nУдалён устаревший комментарий о таймауте команды",
+        "pt": "Correção de funções de objeto para a revisão do repositório ioBroker: os estados connected por dispositivo usam indicator.reachable; os estados id de transmissores/receptores usam a função text\nRemoção de um comentário obsoleto sobre o tempo limite de comando",
+        "nl": "Correctie van objectrollen voor de ioBroker-repositorycontrole: connected-statussen per apparaat gebruiken indicator.reachable; id-statussen van zenders/ontvangers gebruiken de rol text\nEen verouderde opmerking over de opdracht-time-out verwijderd",
+        "fr": "Correction des rôles d objet pour la revue du dépôt ioBroker : les états connected par appareil utilisent indicator.reachable ; les états id des émetteurs/récepteurs utilisent le rôle text\nSuppression d un commentaire obsolète sur le délai des commandes",
+        "it": "Correzione dei ruoli oggetto per la revisione del repository ioBroker: gli stati connected per dispositivo usano indicator.reachable; gli stati id di trasmettitori/ricevitori usano il ruolo text\nRimosso un commento obsoleto sul timeout dei comandi",
+        "es": "Corrección de roles de objeto para la revisión del repositorio ioBroker: los estados connected por dispositivo usan indicator.reachable; los estados id de transmisores/receptores usan el rol text\nEliminado un comentario obsoleto sobre el tiempo de espera de comandos",
+        "pl": "Korekta ról obiektów na potrzeby przeglądu repozytorium ioBroker: stany connected poszczególnych urządzeń używają indicator.reachable; stany id nadajników/odbiorników używają roli text\nUsunięto nieaktualny komentarz dotyczący limitu czasu polecenia",
+        "uk": "Виправлення ролей обʼєктів для перевірки репозиторію ioBroker: стани connected окремих пристроїв використовують indicator.reachable; стани id передавачів/приймачів використовують роль text\nВидалено застарілий коментар про тайм-аут команди",
+        "zh-cn": "为 ioBroker 仓库审核修正对象角色：各设备的 connected 状态改用 indicator.reachable；发射器/接收器的 id 状态改用 text 角色\n删除一处过时的命令超时注释"
+      },
       "0.3.0": {
         "en": "Renamed adapter from blustream-acm200 to blustream-acm to reflect multi-model support\nAdd a Controller Model setting (ACM200/ACM210/ACM500/ACM1000) — states and commands are now model-aware\nAdd breakaway routing (IR/RS232/USB/CEC) and output power/mute for ACM210/500/1000\nAdd Dante/analogue/HDMI audio matrix and ARC control for ACM210/1000\nPreview image URLs now use the configured controller host",
         "de": "Adapter von blustream-acm200 in blustream-acm umbenannt, um die Unterstützung mehrerer Modelle widerzuspiegeln\nEinstellung „Controller-Modell“ hinzugefügt (ACM200/ACM210/ACM500/ACM1000) – Status und Befehle sind jetzt modellabhängig\nBreakaway-Routing (IR/RS232/USB/CEC) sowie Ausgangs-Ein/Aus und Stummschaltung für ACM210/500/1000 hinzugefügt\nDante-/Analog-/HDMI-Audiomatrix und ARC-Steuerung für ACM210/1000 hinzugefügt\nVorschaubild-URLs verwenden jetzt den konfigurierten Controller-Host",
