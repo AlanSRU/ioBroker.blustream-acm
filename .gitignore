@@ -42,3 +42,6 @@ CLAUDE.md
 
 # Vendor API references (local only)
 docs/
+
+# adapter pre-release review marker (local only)
+.review/

@@ -1775,6 +1775,7 @@ class BlustreamAcm extends utils.Adapter {
                     role: 'text',
                     read: true,
                     write: false,
+                    def: '',
                 },
                 native: {},
             }).then(() => {
