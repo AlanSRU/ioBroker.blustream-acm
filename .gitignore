@@ -45,3 +45,6 @@ docs/
 
 # adapter pre-release review marker (local only)
 .review/
+
+# @iobroker/dev-server local profile (local only)
+.dev-server/
