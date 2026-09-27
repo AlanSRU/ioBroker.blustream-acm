@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "blustream-acm",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "news": {
       "0.3.3": {
         "en": "Adapter requires admin >= 7.8.23 now.\nTested with Node.js 26\nUpdated @iobroker/adapter-core to 3.4.3\nAn unreachable controller no longer floods the log: reconnects back off to 5 minutes and each outage is logged once\nDevice states now refresh at the configured Polling Interval; the 10 s heartbeat only checks the connection\nObjects are created once per start instead of re-checked on every status poll\nSplit audio/video and breakaway routes are read back from the controller instead of being overwritten by the next status poll\nFixed: a controller that went offline while connected was not detected",

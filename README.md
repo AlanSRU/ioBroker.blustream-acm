@@ -134,7 +134,7 @@ setState('blustream-acm.0.system.commands.routeAll', '003');
 	Placeholder for the next version (at the beginning of the line):
 	### __WORK IN PROGRESS__
 -->
-### __WORK IN PROGRESS__
+### 0.3.3 (2026-09-27)
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
 - (Alan Paris) Tested with Node.js 26
 - (Alan Paris) Updated @iobroker/adapter-core to 3.4.3
@@ -174,9 +174,6 @@ setState('blustream-acm.0.system.commands.routeAll', '003');
 - (Alan Paris) Transmitter/receiver name states are now read-only (they are reported by the device and cannot be set from the adapter)
 - (Alan Paris) Validate and clamp polling interval and command timeout to safe ranges
 - (Alan Paris) Add Blustream product/manufacturer links to the documentation
-
-### 0.2.3 (2026-07-03)
-- (Alan Paris) Resolve adapter-checker errors: use framework-managed timers, add missing config help translations, and clean up redundant devDependencies
 
 **Older changes have been moved to [CHANGELOG_OLD.md](CHANGELOG_OLD.md)**
 

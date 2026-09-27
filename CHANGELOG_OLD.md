@@ -2,6 +2,9 @@
 
 Older changelog entries are moved here automatically by `@alcalzone/release-script`
 once the changelog in `README.md` grows beyond the most recent releases.
+## 0.2.3 (2026-07-03)
+- (Alan Paris) Resolve adapter-checker errors: use framework-managed timers, add missing config help translations, and clean up redundant devDependencies
+
 ## 0.2.2 (2026-07-02)
 - (Alan Paris) Corrected state roles (routing/audio selectors, connection status, device info) for object-checker compliance
 
