@@ -134,6 +134,8 @@ setState('blustream-acm.0.system.commands.routeAll', '003');
 -->
 ### __WORK IN PROGRESS__
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
+- (Alan Paris) Tested with Node.js 26
+- (Alan Paris) Updated @iobroker/adapter-core to 3.4.3
 
 ### 0.3.2 (2026-08-07)
 - (Alan Paris) Fixed: the adapter stopped retrying for good if the controller was unreachable at start or when a cable was pulled

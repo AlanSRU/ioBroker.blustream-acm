@@ -3,6 +3,19 @@
     "name": "blustream-acm",
     "version": "0.3.2",
     "news": {
+      "0.3.3": {
+        "en": "Adapter requires admin >= 7.8.23 now.\nTested with Node.js 26\nUpdated @iobroker/adapter-core to 3.4.3",
+        "de": "Adapter benötigt jetzt admin >= 7.8.23.\nGetestet mit Node.js 26\n@iobroker/adapter-core auf 3.4.3 aktualisiert",
+        "ru": "Теперь для адаптера требуется администратор >= 7.8.23.\nПротестировано с помощью Node.js 26\nОбновлено @iobroker/adapter-core до версии 3.4.3",
+        "pt": "Agora o adaptador exige admin >= 7.8.23.\nTestado com Node.js 26\nAtualizou @iobroker/adapter-core a 3.4.3",
+        "nl": "Voor de adapter is nu admin >= 7.8.23 vereist.\nGetest met Node.js 26\n@iobroker/adapter-core bijgewerkt naar 3.4.3",
+        "fr": "Adapter nécessite admin >= 7.8.23.\nTesté avec Node.js 26\n@iobroker/adapter-core mis à jour en 3.4.3",
+        "it": "Adapter richiede admin >= 7.8.23 ora.\nTestato con Node.js 26\nAggiornato @iobroker/adapter-core alla 3.4.3",
+        "es": "El adaptador ahora necesita admin >= 7.8.23\nProbado con Node.js 26\nActualizado @iobroker/adapter-core a 3.4.3",
+        "pl": "Adapter wymaga teraz administratora >= 7.8.23.\nTestowane z Node.js 26\nZaktualizowano @iobroker/adapter-core do wersji 3.4.3",
+        "uk": "Адаптер вимагає адміністратора >= 7.8.23 зараз.\nТестовано за допомогою Node.js 26\nОновлено @iobroker/adapter-core до 3.4.3",
+        "zh-cn": "适配器现在需要管理员 >= 7.8.23。\n使用 Node.js 26 进行了测试\n将 @iobroker/adapter-core 更新到 3.4.3"
+      },
       "0.3.2": {
         "en": "Fixed: the adapter stopped retrying for good if the controller was unreachable at start or when a cable was pulled\nFixed: a command timing out while queued removed the wrong queue entry\nCommand Timeout now applies to all commands, not just the handshake; default raised 5000 to 10000 ms\nRouting writes are validated; a non-numeric transmitter id is rejected instead of sent to the controller\nThe nightly full refresh is now spread over 02:45-03:15 instead of firing at exactly 03:00\nPolling interval is floored at twice the command timeout\nPreview URLs are only rewritten when the previewed source changes\nClarified the refresh and refreshAll button labels; existing installs are updated on start\nCorrected the Command Timeout help text in the configuration UI\nPer-device detail parsing logs at debug level instead of flooding the info log\nReceiver mode shows Matrix or Video Wall instead of the raw MX and VW tokens\nA transient object database error during a status parse no longer stops the instance",
         "de": "Fixed: Der Adapter hörte auf, es für immer zu versuchen, wenn der Controller beim Start nicht erreichbar war oder wenn ein Kabel gezogen wurde\nFix: Ein Befehl Timing out während der Warteschlange entfernt die falsche Warteschlange Eintrag\nCommand Timeout gilt jetzt für alle Befehle, nicht nur für den Handshake; Standard erhöht 5000 bis 10000 ms\nRouting-Schreiben werden validiert; eine nicht numerische Transmitter-ID wird abgelehnt, anstatt an den Controller gesendet zu werden\nDie nächtliche volle Refresh ist jetzt über 02:45-03:15 verteilt, anstatt genau um 03:00 Uhr zu feuern\nDas Polling-Intervall wird mit dem doppelten Befehls-Timeout abgerundet\nVorschau-URLs werden nur neu geschrieben, wenn sich die Vorschau-Quelle ändert\nKlarstellung der Refresh- und RefreshAll-Button-Etiketten; bestehende Installationen werden beim Start aktualisiert\nKorrigiert den Befehl Timeout Hilfetext in der Konfigurations-Benutzeroberfläche\nPro-Gerät-Details analysieren Protokolle auf Debug-Ebene, anstatt das Info-Log zu überfluten\nEmpfängermodus zeigt Matrix oder Video Wall anstelle der rohen MX- und VW-Token\nEin transienter Objektdatenbankfehler während eines Status-Parse stoppt die Instanz nicht mehr",
