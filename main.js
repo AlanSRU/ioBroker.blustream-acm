@@ -10,6 +10,7 @@
 
 const utils = require('@iobroker/adapter-core');
 const net = require('node:net');
+const { parseRouteBlock } = require('./lib/routeBlock');
 const {
     resolveModel,
     DEFAULT_MODEL,
@@ -39,6 +40,17 @@ const BANNER = {
  * command builder — see onStateChange.
  */
 const ROUTE_STATES = ['route', 'videoRoute', 'audioRoute', 'irRoute', 'rs232Route', 'usbRoute', 'cecRoute'];
+
+/**
+ * Breakaway route kinds: the model feature gating each, its command builder and its receiver
+ * state. Used both to send a breakaway route and to write one read back from the device.
+ */
+const BREAKAWAY = {
+    ir: { feature: 'routeIR', build: 'routeIR', state: 'irRoute', label: 'IR' },
+    rs232: { feature: 'routeRS232', build: 'routeRS232', state: 'rs232Route', label: 'RS232' },
+    usb: { feature: 'routeUSB', build: 'routeUSB', state: 'usbRoute', label: 'USB' },
+    cec: { feature: 'routeCEC', build: 'routeCEC', state: 'cecRoute', label: 'CEC' },
+};
 
 /**
  * Labels for the two refresh buttons, which are easily confused. Held because
@@ -81,6 +93,7 @@ class BlustreamAcm extends utils.Adapter {
         this.receiverStates = {};
         this.transmitterStates = {};
         this.connectionInProgress = false;
+        this.unloading = false; // Set in onUnload; stops socket events from reconnecting
 
         // Variables for scheduled refresh
         this.scheduledRefreshTimer = null;
@@ -90,12 +103,23 @@ class BlustreamAcm extends utils.Adapter {
         this.socketBuffer = '';
         this.heartbeatTimer = null;
         this.heartbeatTimeout = null;
-        this.reconnectDelay = 30000; // 30 seconds
+        this.reconnectDelay = 30000; // First reconnect delay: 30 seconds
+        this.maxReconnectDelay = 300000; // Backoff cap: 5 minutes
+        this.reconnectAttempts = 0; // Failed attempts in the current outage; 0 while connected
         this.commandQueue = [];
         this.processingCommand = false;
 
         this.timeout = 10000; // default command timeout (ms); overridden from config in onReady
         this.heartbeatInterval = 10000; // Heartbeat every 10 s
+
+        // Objects already ensured this run, so STATUS parsing skips the objects-DB round
+        // trips on every cycle. Entries are dropped when removeStaleDevices deletes a channel.
+        this.ensuredObjects = new Set();
+        // Last name written to each device channel, so it is only rewritten on change
+        this.channelNames = {};
+        // Serial chain of OUT-detail route re-reads, and the receivers waiting in it
+        this.routeRefreshChain = Promise.resolve();
+        this.pendingRouteRefresh = new Set();
 
         this.collectingTxInfo = false;
         this.txInfoBuffer = '';
@@ -103,6 +127,8 @@ class BlustreamAcm extends utils.Adapter {
         this.rxInfoBuffer = '';
         this.collectingStatus = false;
         this.statusBuffer = '';
+        this.statusIsHeartbeat = false; // The status response being collected is a heartbeat
+        this.nextStatusIsHeartbeat = false; // The last STATUS sent was a heartbeat
 
         // Last source IP each preview URL was built from, keyed by state id.
         // The URL carries a cache-busting timestamp, so it is only rewritten
@@ -320,6 +346,7 @@ class BlustreamAcm extends utils.Adapter {
             },
             native: {},
         });
+        this.setState('system.status.connected', false, true);
 
         await this.setObjectNotExistsAsync('system.status.lastUpdate', {
             type: 'state',
@@ -602,7 +629,14 @@ class BlustreamAcm extends utils.Adapter {
      * @param {() => void} callback - Called when cleanup is complete
      */
     onUnload(callback) {
+        // Set first: socket events still arrive after unload (destroy() emits 'close'
+        // asynchronously) and must not be reported as a lost connection or trigger a reconnect
+        this.unloading = true;
         try {
+            // The adapter is going away, so the controller is no longer connected through it
+            this.setState('info.connection', false, true);
+            this.setState('system.status.connected', false, true);
+
             // Clear timers
             if (this.pollTimer) {
                 this.clearTimeout(this.pollTimer);
@@ -633,9 +667,12 @@ class BlustreamAcm extends utils.Adapter {
             });
             this.commandQueue = [];
 
-            // Close socket connection
+            // Close socket connection. Detach the handlers first; the no-op error listener
+            // keeps a late socket error from being thrown as an unhandled 'error' event.
             if (this.socket) {
                 try {
+                    this.socket.removeAllListeners();
+                    this.socket.on('error', () => {});
                     this.socket.destroy();
                 } catch (e) {
                     this.log.warn(`Error during socket destroy: ${e.message}`);
@@ -660,8 +697,8 @@ class BlustreamAcm extends utils.Adapter {
             return;
         }
 
-        this.log.info(`Connecting to ${this.modelDef.label} at ${this.host}:${this.port}`);
-        this.log.info(`Using socket timeout: ${this.timeout}ms`);
+        this.connLog('info', `Connecting to ${this.modelDef.label} at ${this.host}:${this.port}`);
+        this.log.debug(`Using socket timeout: ${this.timeout}ms`);
 
         // Clear any existing connection and timers. Must run BEFORE the in-progress flag
         // is raised, because cleanup() clears that flag (see the note there).
@@ -681,11 +718,7 @@ class BlustreamAcm extends utils.Adapter {
             this.socket.setTimeout(this.timeout);
 
             // Add more detailed handlers
-            this.socket.on('connect', () => {
-                this.log.info(`Socket connected to ${this.modelDef.label}`);
-                this.log.debug(`Socket timeout is set to ${this.timeout}ms`);
-                this.handleConnect();
-            });
+            this.socket.on('connect', () => this.handleConnect());
 
             this.socket.on('data', data => {
                 // Log data receipt for debugging
@@ -693,24 +726,17 @@ class BlustreamAcm extends utils.Adapter {
                 this.handleData(data);
             });
 
-            this.socket.on('error', err => {
-                this.log.error(`Socket error: ${err.message}`);
-                this.handleError(err);
-            });
+            this.socket.on('error', err => this.handleError(err));
 
             this.socket.on('timeout', () => {
-                // Add more context to timeout log
-                this.log.warn(`Socket timeout after ${this.timeout}ms - no activity detected`);
-                this.log.info(
+                this.connLog(
+                    'info',
                     `If the timeout persists, try using a Telnet client to test basic connectivity to ${this.host}:${this.port}`,
                 );
                 this.handleTimeout();
             });
 
-            this.socket.on('close', hadError => {
-                this.log.info(`Socket closed${hadError ? ' due to error' : ''}`);
-                this.handleClose(hadError);
-            });
+            this.socket.on('close', hadError => this.handleClose(hadError));
 
             // Connect to the device
             this.socket.connect(this.port, this.host);
@@ -725,7 +751,7 @@ class BlustreamAcm extends utils.Adapter {
      * Handle socket connection event
      */
     handleConnect() {
-        this.log.info(`Socket connected to ${this.modelDef.label}`);
+        this.connLog('info', `Socket connected to ${this.modelDef.label}`);
 
         // Wait longer before sending test command
         this.setTimeout(() => {
@@ -736,7 +762,12 @@ class BlustreamAcm extends utils.Adapter {
             this.executeCommand('STATUS', this.timeout)
                 .then(() => {
                     // Connection confirmed
-                    this.log.info('Connection confirmed with test command');
+                    this.log.info(
+                        this.reconnectAttempts > 0
+                            ? `Connection restored after ${this.reconnectAttempts} failed attempt(s)`
+                            : 'Connection confirmed with test command',
+                    );
+                    this.reconnectAttempts = 0;
                     this.connected = true;
                     this.connectionInProgress = false;
                     this.setState('info.connection', true, true);
@@ -759,7 +790,7 @@ class BlustreamAcm extends utils.Adapter {
                     this.startPolling();
                 })
                 .catch(err => {
-                    this.log.warn(`Test command failed: ${err.message}`);
+                    this.connLog('warn', `Test command failed: ${err.message}`);
                     this.connected = false;
                     this.connectionInProgress = false;
                     this.cleanup(true);
@@ -773,7 +804,7 @@ class BlustreamAcm extends utils.Adapter {
      * @param {Error} err - Error object
      */
     handleError(err) {
-        this.log.error(`Socket error: ${err.message}`);
+        this.connLog('error', `Socket error: ${err.message}`);
         this.cleanup(true);
     }
 
@@ -781,7 +812,7 @@ class BlustreamAcm extends utils.Adapter {
      * Handle socket timeout
      */
     handleTimeout() {
-        this.log.warn(`Socket timeout after ${this.timeout}ms`);
+        this.connLog('warn', `Socket timeout after ${this.timeout}ms - no activity detected`);
         this.cleanup(true);
     }
 
@@ -792,12 +823,24 @@ class BlustreamAcm extends utils.Adapter {
      */
     handleClose(hadError) {
         if (hadError) {
-            this.log.warn('Socket closed due to error');
+            this.connLog('warn', 'Socket closed due to error');
         } else {
-            this.log.info('Socket closed');
+            this.connLog('warn', 'Socket closed');
         }
 
         this.cleanup(true);
+    }
+
+    /**
+     * Log a connection-lifecycle message: at `level` for the first failure of an
+     * outage, at debug for every retry after it, so an unreachable controller
+     * does not flood the log.
+     *
+     * @param {'info'|'warn'|'error'} level - Log level used for the first failure
+     * @param {string} msg - Message
+     */
+    connLog(level, msg) {
+        this.log[this.reconnectAttempts > 0 ? 'debug' : level](msg);
     }
 
     /**
@@ -818,22 +861,27 @@ class BlustreamAcm extends utils.Adapter {
                 return;
             }
 
-            // Skip heartbeat STATUS if the command queue is busy — the fact that
-            // we're processing commands already proves the connection is alive
+            // Skip heartbeat STATUS if the command queue is busy. The watchdog is not reset
+            // here: only received data (handleData) proves the connection is alive, so a
+            // command stuck without a reply still lets the watchdog fire.
             if (this.commandQueue.length > 0 || this.processingCommand) {
-                this.log.debug('Skipping heartbeat — command queue is busy (connection is alive)');
-                this.resetHeartbeatTimeout();
+                this.log.debug('Skipping heartbeat — command queue is busy');
                 return;
             }
 
             this.log.debug('Sending heartbeat');
 
-            // Set up timeout for heartbeat response
-            this.resetHeartbeatTimeout();
+            // Arm the watchdog if nothing has armed it yet. Never push it back from here:
+            // resetting on every 10 s tick kept the 15 s watchdog from ever expiring.
+            if (!this.heartbeatTimeout) {
+                this.resetHeartbeatTimeout();
+            }
 
             // Use a command that the ACM200 actually supports. Capped at the heartbeat
             // interval so a long configured timeout cannot outlive the watchdog below.
-            this.executeCommand('STATUS', Math.min(this.timeout, this.heartbeatInterval))
+            // Liveness only: the response is not parsed into states, so the configured
+            // pollInterval alone decides how often device states are refreshed.
+            this.executeCommand('STATUS', Math.min(this.timeout, this.heartbeatInterval), true)
                 .then(response => {
                     this.log.debug(`Heartbeat successful: received ${response ? 'response' : 'no response'}`);
                 })
@@ -855,7 +903,7 @@ class BlustreamAcm extends utils.Adapter {
 
         // Set new timeout
         this.heartbeatTimeout = this.setTimeout(() => {
-            this.log.error('Heartbeat timeout - connection considered dead');
+            this.connLog('error', 'Heartbeat timeout - connection considered dead');
             this.cleanup(true);
         }, this.heartbeatInterval * 1.5); // 1.5 times the interval for some grace period
     }
@@ -865,16 +913,10 @@ class BlustreamAcm extends utils.Adapter {
      *
      * @param {string} command - Command to execute
      * @param {number} timeout - Command timeout in ms
+     * @param {boolean} [heartbeat] - Liveness check: a STATUS response is not parsed into states
      * @returns {Promise} - Resolves with response, rejects on error or timeout
      */
-    /**
-     * Execute a command with timeout and response handling
-     *
-     * @param {string} command - Command to execute
-     * @param {number} timeout - Command timeout in ms
-     * @returns {Promise} - Resolves with response, rejects on error or timeout
-     */
-    executeCommand(command, timeout = this.timeout) {
+    executeCommand(command, timeout = this.timeout, heartbeat = false) {
         return new Promise((resolve, reject) => {
             if (!this.socket || this.socket.destroyed) {
                 return reject(new Error('Socket not connected'));
@@ -883,6 +925,7 @@ class BlustreamAcm extends utils.Adapter {
             const entry = {
                 command,
                 timeout,
+                heartbeat,
                 resolve,
                 reject,
                 responseReceived: false, // Track if any response was received
@@ -987,6 +1030,12 @@ class BlustreamAcm extends utils.Adapter {
         const cmd = this.commandQueue[0];
 
         this.log.debug(`Executing command: ${cmd.command}`);
+
+        // The queue is serial, so the next status banner answers the STATUS sent here. Marked
+        // at send time because the command can complete on a separator line before the banner.
+        if (cmd.command === 'STATUS') {
+            this.nextStatusIsHeartbeat = cmd.heartbeat;
+        }
 
         try {
             // Send command with proper line termination
@@ -1147,6 +1196,8 @@ class BlustreamAcm extends utils.Adapter {
             // Begin collecting status info
             this.statusBuffer = `${line}\n`;
             this.collectingStatus = true;
+            this.statusIsHeartbeat = this.nextStatusIsHeartbeat;
+            this.nextStatusIsHeartbeat = false;
             this.log.debug('Starting to collect status information');
         } else if (this.collectingStatus) {
             // Append to status buffer
@@ -1157,9 +1208,13 @@ class BlustreamAcm extends utils.Adapter {
                 line.includes('=================') ||
                 line.includes('================================================================')
             ) {
-                // Process the complete status response
-                this.log.debug('Status collection complete, processing status info');
-                this.processStatusInfo(this.statusBuffer);
+                // Process the complete status response (heartbeat responses only prove liveness)
+                if (this.statusIsHeartbeat) {
+                    this.log.debug('Heartbeat status received');
+                } else {
+                    this.log.debug('Status collection complete, processing status info');
+                    this.processStatusInfo(this.statusBuffer);
+                }
                 this.statusBuffer = '';
                 this.collectingStatus = false;
             }
@@ -1217,13 +1272,20 @@ class BlustreamAcm extends utils.Adapter {
         }
 
         // Schedule reconnection if needed
-        if (reconnect && !this.reconnectTimer) {
-            this.log.info(`Will attempt to reconnect in ${this.reconnectDelay / 1000} seconds`);
+        if (reconnect && !this.reconnectTimer && !this.unloading) {
+            // Exponential backoff: 30 s, 60 s, 120 s ... capped at maxReconnectDelay
+            const delay = Math.min(this.reconnectDelay * 2 ** this.reconnectAttempts, this.maxReconnectDelay);
+            this.connLog(
+                'info',
+                `Will attempt to reconnect in ${delay / 1000} seconds ` +
+                    '(retries back off to 5 minutes; further failures are logged at debug level)',
+            );
+            this.reconnectAttempts++;
 
             this.reconnectTimer = this.setTimeout(() => {
                 this.reconnectTimer = null;
                 this.connectToACM();
-            }, this.reconnectDelay);
+            }, delay);
         }
     }
 
@@ -1239,6 +1301,9 @@ class BlustreamAcm extends utils.Adapter {
             // Check if a full refresh is already running before polling
             this.getStateAsync('system.status.fullRefreshRunning')
                 .then(state => {
+                    if (this.unloading) {
+                        return;
+                    }
                     const refreshRunning = state && state.val === true;
 
                     if (this.connected && !refreshRunning) {
@@ -1253,6 +1318,9 @@ class BlustreamAcm extends utils.Adapter {
                     this.startPolling();
                 })
                 .catch(err => {
+                    if (this.unloading) {
+                        return;
+                    }
                     this.log.warn(`Error checking refresh status: ${err.message}`);
 
                     // Default to regular polling on error
@@ -1545,6 +1613,9 @@ class BlustreamAcm extends utils.Adapter {
                     this.receiverStates[rxId].currentAudioTx = txId;
                 }
 
+                // Fixed per-signal routes may survive an FR command; read back the real ones
+                this.refreshReceiverRoutes([rxId]);
+
                 // Update the receiver's preview URL to show the new source
                 if (this.transmitterStates[txId]) {
                     this.updatePreviewUrl(`receivers.${rxId}.previewUrl`, this.transmitterStates[txId].ip).catch(err =>
@@ -1629,13 +1700,7 @@ class BlustreamAcm extends utils.Adapter {
      * @param {string} rxId - Receiver ID (destination)
      */
     routeBreakaway(kind, txId, rxId) {
-        const map = {
-            ir: { feature: 'routeIR', build: 'routeIR', state: 'irRoute', label: 'IR' },
-            rs232: { feature: 'routeRS232', build: 'routeRS232', state: 'rs232Route', label: 'RS232' },
-            usb: { feature: 'routeUSB', build: 'routeUSB', state: 'usbRoute', label: 'USB' },
-            cec: { feature: 'routeCEC', build: 'routeCEC', state: 'cecRoute', label: 'CEC' },
-        };
-        const def = map[kind];
+        const def = BREAKAWAY[kind];
         if (!def) {
             return;
         }
@@ -1877,20 +1942,25 @@ class BlustreamAcm extends utils.Adapter {
         // Extract firmware version
         const fwMatch = data.match(/FW Version: ([\d.]+)/);
         if (fwMatch) {
-            this.setObjectNotExistsAsync('system.status.firmwareVersion', {
-                type: 'state',
-                common: {
-                    name: 'Firmware Version',
-                    type: 'string',
-                    role: 'text',
-                    read: true,
-                    write: false,
-                    def: '',
-                },
-                native: {},
-            })
+            const fwId = 'system.status.firmwareVersion';
+            const ensured = this.ensuredObjects.has(fwId)
+                ? Promise.resolve()
+                : this.setObjectNotExistsAsync(fwId, {
+                      type: 'state',
+                      common: {
+                          name: 'Firmware Version',
+                          type: 'string',
+                          role: 'text',
+                          read: true,
+                          write: false,
+                          def: '',
+                      },
+                      native: {},
+                  });
+            ensured
                 .then(() => {
-                    this.setState('system.status.firmwareVersion', fwMatch[1], true);
+                    this.ensuredObjects.add(fwId);
+                    this.setState(fwId, fwMatch[1], true);
                 })
                 .catch(err => this.log.warn(`Could not store firmware version: ${err.message}`));
         }
@@ -1941,6 +2011,8 @@ class BlustreamAcm extends utils.Adapter {
                         this.log.info(`Removing stale transmitter ${deviceId} (no longer reported by controller)`);
                         await this.deleteChannelAsync('transmitters', deviceId);
                         this.forgetPreviewUrl('transmitters', deviceId);
+                        this.ensuredObjects.delete(`transmitters.${deviceId}`);
+                        delete this.channelNames[`transmitters.${deviceId}`];
                     }
                 }
             }
@@ -1960,6 +2032,8 @@ class BlustreamAcm extends utils.Adapter {
                         this.log.info(`Removing stale receiver ${deviceId} (no longer reported by controller)`);
                         await this.deleteChannelAsync('receivers', deviceId);
                         this.forgetPreviewUrl('receivers', deviceId);
+                        this.ensuredObjects.delete(`receivers.${deviceId}`);
+                        delete this.channelNames[`receivers.${deviceId}`];
                     }
                 }
             }
@@ -2206,7 +2280,7 @@ class BlustreamAcm extends utils.Adapter {
             return;
         }
 
-        this.log.info(`Found data line: "${dataLine}"`);
+        this.log.debug(`Found data line: "${dataLine}"`);
 
         // Simple, direct approach - split by whitespace and count fields
         const parts = dataLine.split(/\s+/);
@@ -2276,12 +2350,16 @@ class BlustreamAcm extends utils.Adapter {
                 this.setState(`transmitters.${id}.version`, version, true);
                 this.setState(`transmitters.${id}.mac`, mac, true);
 
-                // Update channel name
-                this.extendObject(`transmitters.${id}`, {
-                    common: {
-                        name: name || `Transmitter ${id}`,
-                    },
-                }).catch(err => this.log.warn(`Could not rename transmitter ${id}: ${err.message}`));
+                // Update channel name (only when it changed; detail reads now follow every route change)
+                const channel = `transmitters.${id}`;
+                const channelName = name || `Transmitter ${id}`;
+                if (this.channelNames[channel] !== channelName) {
+                    this.extendObject(channel, { common: { name: channelName } })
+                        .then(() => {
+                            this.channelNames[channel] = channelName;
+                        })
+                        .catch(err => this.log.warn(`Could not rename transmitter ${id}: ${err.message}`));
+                }
             })
             .catch(err => {
                 this.log.error(`Error processing transmitter ${id}: ${err.message}`);
@@ -2296,6 +2374,9 @@ class BlustreamAcm extends utils.Adapter {
      */
     async ensureTransmitterObjects(id) {
         const prefix = `transmitters.${id}`;
+        if (this.ensuredObjects.has(prefix)) {
+            return;
+        }
 
         // Create main channel
         await this.setObjectNotExists(prefix, {
@@ -2358,6 +2439,7 @@ class BlustreamAcm extends utils.Adapter {
                 native: {},
             });
         }
+        this.ensuredObjects.add(prefix);
     }
 
     /**
@@ -2538,26 +2620,11 @@ class BlustreamAcm extends utils.Adapter {
         // Status is both net and hpd being on
         const status = netStatus && hpdStatus;
 
-        // Find the current source (transmitter ID)
-        let currentTx = '';
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.includes('Fr') && line.includes('Vid/Aud')) {
-                // The next line should contain the source
-                if (i + 1 < lines.length) {
-                    const srcLine = lines[i + 1].trim();
-                    const srcParts = srcLine.split(/\s+/);
-                    // Find the first 3-digit number
-                    for (const part of srcParts) {
-                        if (/^\d{3}$/.test(part)) {
-                            currentTx = part;
-                            this.log.debug(`Found source TX: ${currentTx}`);
-                            break;
-                        }
-                    }
-                }
-                break;
-            }
+        // Main route plus the per-signal routes (the only place a split route is reported)
+        const routeBlock = parseRouteBlock(lines);
+        const currentTx = routeBlock ? routeBlock.main : '';
+        if (routeBlock) {
+            this.log.debug(`Found routes for RX ${id}: main=${currentTx} ${JSON.stringify(routeBlock.routes)}`);
         }
 
         // Find IP address
@@ -2602,8 +2669,8 @@ class BlustreamAcm extends utils.Adapter {
                 this.setState(`receivers.${id}.ip`, ip, true);
                 this.setState(`receivers.${id}.connected`, status, true);
 
-                if (currentTx) {
-                    this.setState(`receivers.${id}.route`, currentTx, true);
+                if (routeBlock) {
+                    this.applyRouteBlock(id, routeBlock);
                 }
 
                 this.setState(`receivers.${id}.resolution`, resolution, true);
@@ -2618,16 +2685,84 @@ class BlustreamAcm extends utils.Adapter {
                     );
                 }
 
-                // Update channel name
-                this.extendObject(`receivers.${id}`, {
-                    common: {
-                        name: name || `Receiver ${id}`,
-                    },
-                }).catch(err => this.log.warn(`Could not rename receiver ${id}: ${err.message}`));
+                // Update channel name (only when it changed; detail reads now follow every route change)
+                const channel = `receivers.${id}`;
+                const channelName = name || `Receiver ${id}`;
+                if (this.channelNames[channel] !== channelName) {
+                    this.extendObject(channel, { common: { name: channelName } })
+                        .then(() => {
+                            this.channelNames[channel] = channelName;
+                        })
+                        .catch(err => this.log.warn(`Could not rename receiver ${id}: ${err.message}`));
+                }
             })
             .catch(err => {
                 this.log.error(`Error processing receiver ${id}: ${err.message}`);
             });
+    }
+
+    /**
+     * Write the routes read from an `OUT ooo STATUS` detail response. This is the device's
+     * own report of every signal's source, so it replaces whatever the adapter assumed.
+     *
+     * @param {string} id - Receiver ID
+     * @param {{ main: string, routes: Record<string, string> }} block - Result of parseRouteBlock
+     */
+    applyRouteBlock(id, block) {
+        const { main, routes } = block;
+        this.setState(`receivers.${id}.route`, main, true);
+        if (routes.video) {
+            this.setState(`receivers.${id}.videoRoute`, routes.video, true);
+        }
+        if (routes.audio) {
+            this.setState(`receivers.${id}.audioRoute`, routes.audio, true);
+        }
+        for (const [kind, def] of Object.entries(BREAKAWAY)) {
+            if (routes[kind] && this.modelDef.features[def.feature]) {
+                this.setState(`receivers.${id}.${def.state}`, routes[kind], true);
+            }
+        }
+
+        // currentTx is left to STATUS, which uses it to notice main-route changes
+        const rx = this.receiverStates[id];
+        if (rx) {
+            rx.hasRouteBlock = true;
+            rx.currentVideoTx = routes.video || main;
+            rx.currentAudioTx = routes.audio || main;
+        }
+    }
+
+    /**
+     * Re-read the detail of the given receivers so their routes come from the device. A combined
+     * FR route may leave fixed per-signal routes (VFR/AFR/...) in place, which STATUS cannot show.
+     *
+     * @param {string[]} rxIds - Receiver IDs
+     */
+    refreshReceiverRoutes(rxIds) {
+        // One adapter-wide chain, one receiver at a time: a command's timeout starts when it is
+        // queued, so queuing many receivers at once (a routeAll, or many routes changed between
+        // polls) would let the tail of a large system time out before it is sent. A receiver
+        // already waiting in the chain is not queued twice.
+        for (const rxId of rxIds) {
+            if (this.pendingRouteRefresh.has(rxId)) {
+                continue;
+            }
+            this.pendingRouteRefresh.add(rxId);
+            this.routeRefreshChain = this.routeRefreshChain.then(async () => {
+                this.pendingRouteRefresh.delete(rxId);
+                if (!this.connected || this.unloading) {
+                    return;
+                }
+                try {
+                    await this.fetchReceiverDetails(rxId);
+                } catch (err) {
+                    this.log.debug(`Could not re-read routes of RX ${rxId}: ${err.message}`);
+                }
+                // Same settle the queue gives between commands, which a link queued straight
+                // after the previous completion would otherwise skip
+                await new Promise(resolve => this.setTimeout(resolve, 100));
+            });
+        }
     }
 
     /**
@@ -2638,6 +2773,9 @@ class BlustreamAcm extends utils.Adapter {
      */
     async ensureReceiverObjects(id) {
         const prefix = `receivers.${id}`;
+        if (this.ensuredObjects.has(prefix)) {
+            return;
+        }
 
         // Create main channel
         await this.setObjectNotExists(prefix, {
@@ -2734,6 +2872,7 @@ class BlustreamAcm extends utils.Adapter {
                 native: {},
             });
         }
+        this.ensuredObjects.add(prefix);
     }
 
     /**
@@ -2757,9 +2896,6 @@ class BlustreamAcm extends utils.Adapter {
             statusBool = !!status;
         }
 
-        // Ensure all objects exist (single source of truth: ensureTransmitterObjects)
-        await this.ensureTransmitterObjects(id);
-
         // Save the transmitter info to our internal state
         if (!this.transmitterStates[id]) {
             this.transmitterStates[id] = {
@@ -2771,6 +2907,10 @@ class BlustreamAcm extends utils.Adapter {
                 name: name || `Transmitter ${id}`,
             };
         }
+
+        // Ensure all objects exist (single source of truth: ensureTransmitterObjects). Runs
+        // after the device is registered, for the same reason as in createReceiver.
+        await this.ensureTransmitterObjects(id);
 
         // Update state values
         await this.setState(`${txId}.id`, id, true);
@@ -2797,11 +2937,10 @@ class BlustreamAcm extends utils.Adapter {
             await this.setState(`${txId}.name`, name, true);
 
             // Also update the channel name if it changed
-            await this.extendObjectAsync(txId, {
-                common: {
-                    name: name,
-                },
-            });
+            if (this.channelNames[txId] !== name) {
+                await this.extendObject(txId, { common: { name } });
+                this.channelNames[txId] = name;
+            }
         }
 
         // Generate a preview URL - format as provided by user
@@ -2839,8 +2978,12 @@ class BlustreamAcm extends utils.Adapter {
             statusBool = !!status;
         }
 
-        // Ensure all objects exist (single source of truth: ensureReceiverObjects)
-        await this.ensureReceiverObjects(id);
+        // STATUS reports only the main route (FromIn), not the per-signal routes, so it never
+        // overwrites videoRoute/audioRoute of a known receiver: those come from the OUT detail
+        // (applyRouteBlock). On first sight both start at the main route until the detail is
+        // read; when the main route changed outside the adapter, the detail is re-read.
+        const prev = this.receiverStates[id];
+        const mainRouteChanged = !!prev && prev.currentTx !== currentTx;
 
         // Save the receiver info to our internal state
         if (!this.receiverStates[id]) {
@@ -2849,6 +2992,8 @@ class BlustreamAcm extends utils.Adapter {
                 ip,
                 status: statusBool,
                 currentTx,
+                currentVideoTx: currentTx,
+                currentAudioTx: currentTx,
                 resolution,
                 mode: mode || '',
                 model: model || '',
@@ -2856,14 +3001,22 @@ class BlustreamAcm extends utils.Adapter {
             };
         }
 
+        // Ensure all objects exist (single source of truth: ensureReceiverObjects). Runs after
+        // the device is registered above, so a concurrent removeStaleDevices cannot mistake
+        // the channel it is creating for a stale one and delete it.
+        await this.ensureReceiverObjects(id);
+
         // Update state values
         await this.setState(`${rxId}.id`, id, true);
         await this.setState(`${rxId}.ip`, ip, true);
         await this.setState(`${rxId}.connected`, statusBool, true);
         await this.setState(`${rxId}.route`, currentTx, true);
-        // STATUS only reports one FromIn value — keep video/audio route states in sync
-        await this.setState(`${rxId}.videoRoute`, currentTx, true);
-        await this.setState(`${rxId}.audioRoute`, currentTx, true);
+        // Until a route block has been read for this receiver (e.g. a model whose detail layout
+        // the parser does not recognise), video/audio follow the main route as in 0.3.2
+        if (!prev || (mainRouteChanged && !prev.hasRouteBlock)) {
+            await this.setState(`${rxId}.videoRoute`, currentTx, true);
+            await this.setState(`${rxId}.audioRoute`, currentTx, true);
+        }
 
         if (resolution) {
             await this.setState(`${rxId}.resolution`, resolution, true);
@@ -2885,11 +3038,10 @@ class BlustreamAcm extends utils.Adapter {
             await this.setState(`${rxId}.name`, name, true);
 
             // Also update the channel name if it changed
-            await this.extendObjectAsync(rxId, {
-                common: {
-                    name: name,
-                },
-            });
+            if (this.channelNames[rxId] !== name) {
+                await this.extendObject(rxId, { common: { name } });
+                this.channelNames[rxId] = name;
+            }
         }
 
         // For Receiver preview, we need to use the connected transmitter's IP
@@ -2907,11 +3059,13 @@ class BlustreamAcm extends utils.Adapter {
             ip,
             status: statusBool,
             currentTx,
-            currentVideoTx: currentTx,
-            currentAudioTx: currentTx,
             resolution,
             name: name || this.receiverStates[id].name,
         };
+
+        if (mainRouteChanged) {
+            this.refreshReceiverRoutes([id]);
+        }
     }
 
     /**
@@ -2952,6 +3106,9 @@ class BlustreamAcm extends utils.Adapter {
                         this.log.warn(`Could not update preview URL for RX ${rxId}: ${err.message}`),
                     );
                 }
+
+                // Fixed per-signal routes may survive an FR command; read back the real ones
+                this.refreshReceiverRoutes(Object.keys(this.receiverStates));
             })
             .catch(err => {
                 this.log.error(`Error routing video to all: ${err.message}`);
